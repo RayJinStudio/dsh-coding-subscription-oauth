@@ -117,7 +117,7 @@ Ensuite ouvrez **Settings → Coding OAuth** et connectez-vous à n'importe quel
 
 ## Installation
 
-Nécessite DeepSeek Harness `0.1.1-rc.2` et Node.js 22.19+. Détails complets dans les [notes d'installation](INSTALL.md).
+Nécessite DeepSeek Harness `0.2.0-rc.2` et Node.js 22.19+. Détails complets dans les [notes d'installation](INSTALL.md).
 
 ```bash
 # version actuelle npm (recommandé)

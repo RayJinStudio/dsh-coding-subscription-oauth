@@ -117,7 +117,7 @@ dsh plugin --profile web add dsh-agy@0.1.2
 
 ## Установка
 
-Требуется DeepSeek Harness `0.1.1-rc.2` и Node.js 22.19+. Полные детали в [заметках по установке](INSTALL.md).
+Требуется DeepSeek Harness `0.2.0-rc.2` и Node.js 22.19+. Полные детали в [заметках по установке](INSTALL.md).
 
 ```bash
 # текущая npm-версия (рекомендуется)

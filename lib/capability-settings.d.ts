@@ -60,57 +60,57 @@ export declare const DEFAULT_CAPABILITY_SETTINGS: CapabilitySettings;
  * Real Schemastery schema registered with the Host settings service. Defaults
  * remain conservative, and bounds are enforced before a user document commits.
  */
-export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>, Schemastery.ObjectT<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>>;
+export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, "plain">;
 /** Serialized schema metadata consumed by Settings UI tests and diagnostics. */
-export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>, Schemastery.ObjectT<{
-    codexSearch: Schema<boolean, boolean>;
-    codexImages: Schema<boolean, boolean>;
-    codexImageEdits: Schema<boolean, boolean>;
-    codexImagesAnyModel: Schema<boolean, boolean>;
-    codexUsage: Schema<boolean, boolean>;
-    codexFast: Schema<boolean, boolean>;
-    grokImagineImage: Schema<boolean, boolean>;
-    grokImagineVideo: Schema<boolean, boolean>;
-    searchResults: Schema<number, number>;
-    imageCount: Schema<number, number>;
-    videoArtifactTtlMs: Schema<number, number>;
-}>>;
+export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    codexSearch: Schema<boolean, boolean, "defined">;
+    codexImages: Schema<boolean, boolean, "defined">;
+    codexImageEdits: Schema<boolean, boolean, "defined">;
+    codexImagesAnyModel: Schema<boolean, boolean, "defined">;
+    codexUsage: Schema<boolean, boolean, "defined">;
+    codexFast: Schema<boolean, boolean, "defined">;
+    grokImagineImage: Schema<boolean, boolean, "defined">;
+    grokImagineVideo: Schema<boolean, boolean, "defined">;
+    searchResults: Schema<number, number, "defined">;
+    imageCount: Schema<number, number, "defined">;
+    videoArtifactTtlMs: Schema<number, number, "defined">;
+}>>, "plain">;
 export type CapabilitySettingsSchemaType = typeof CapabilitySettingsSchema;
 /** Revision-bearing, secret-free snapshot used for CAS writes and UI. */
 export interface CapabilitySettingsSnapshot {
@@ -155,16 +155,42 @@ export interface CapabilitySettingsService {
     get?(ns: string): unknown;
     update?(ns: string, patch: object, expectedRevision?: number): Promise<void>;
     replace?(ns: string, section: object, expectedRevision?: number): Promise<void>;
+    mutate?(ns: string, ops: readonly CapabilitySettingsPathOp[], expectedRevision?: number): Promise<void>;
     register?(ns: string, schema: CapabilitySettingsSchemaType, options?: {
         readonly base?: CapabilitySettingsPatch;
         readonly applies?: "live" | "restart";
         readonly validate?: (value: CapabilitySettings) => void;
     }): CapabilitySettingsScope;
 }
+/** One path-addressed entry-config edit, mirroring the Host's `settings.mutate()` wire form. */
+export interface CapabilitySettingsPathOp {
+    readonly op: "set" | "unset";
+    readonly path: readonly string[];
+    readonly value?: unknown;
+}
+/**
+ * A 0.2.x `.volatile()` Config field: the loader hands the plugin a live reference
+ * whose `get()` returns the value committed by the running fiber, instead of the
+ * parsed object 0.1.x passed through.
+ */
+export interface CapabilityVolatileSection<T> {
+    get(): T | undefined;
+}
 /** Construction options. `base` is the YAML / composition entry layered under the user section. */
 export interface CapabilitySettingsControllerOptions {
     readonly settings?: CapabilitySettingsService | undefined;
     readonly base?: CapabilitySettingsPatch | undefined;
+    /**
+     * Live reader for a volatile Config section. Preferred over `describe()` because it
+     * is the value the Host actually committed into this plugin's fiber.
+     */
+    readonly volatileSection?: (() => unknown) | undefined;
+    /**
+     * Profile plugin entry id owning this plugin's Config under the 0.2.x form model
+     * (the composed entry id, normally the plugin's exported `name`). Used when
+     * `describe()` does not show which entry carries the capability section.
+     */
+    readonly entryNamespace?: string | undefined;
     /** Contain both synchronous and asynchronous observer failures. */
     readonly onListenerError?: ((error: unknown) => void) | undefined;
 }
@@ -223,9 +249,12 @@ export declare class CapabilitySettingsController {
     private readonly settings;
     private readonly base;
     private readonly onListenerError;
+    private readonly configuredEntryNamespace;
+    private readonly volatileSection;
     private readonly listeners;
     private scope;
     private scopeDisposer;
+    private resolvedNamespace;
     private localRevision;
     private lastSnapshot;
     private disposed;
@@ -257,11 +286,35 @@ export declare class CapabilitySettingsController {
     /** Drop the register() watcher and every listener. Further writes fail. */
     dispose(): void;
     private attachScope;
+    /**
+     * Whether the attached service is the 0.2.x form model: one descriptor per profile
+     * plugin entry, no dynamic `register()`. There the capability section is this
+     * plugin entry's `capabilities` Config field, so reads unwrap it and writes address
+     * the entry (and are applied with path ops to keep sibling fields intact).
+     */
+    private get entryScoped();
+    /**
+     * Namespace the attached service addresses. 0.1.x registered this plugin's own
+     * namespace; 0.2.x only accepts profile plugin entries, so resolve the entry that
+     * owns this plugin's Config once and reuse it.
+     * @returns the legacy namespace, or the owning entry id under the form model.
+     */
+    hostNamespace(): string;
+    private resolveHostNamespace;
+    private describedSection;
     private writeReason;
     private isWritable;
     private write;
     private readSnapshot;
+    private readVolatileSection;
     private readResolvedFromService;
+    private readServiceValue;
+    /**
+     * Apply one edit through the 0.2.x form model. `mutate()` is preferred because a
+     * shallow `update()` of the entry would drop the capability keys a sparse patch
+     * does not restate; `replace` resets the section instead of the whole entry.
+     */
+    private writeEntryScoped;
     private readDescribed;
     private publish;
 }

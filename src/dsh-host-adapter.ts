@@ -63,6 +63,26 @@ function capability(value: unknown, contract: string, methods: readonly string[]
 	return { state: "available", contract };
 }
 
+/**
+ * The settings seam changed shape between host lines: 0.1.x exposed
+ * `register(ns, schema)` for a plugin-owned namespace, while 0.2.x exposes one form
+ * per profile entry (`describe`/`update`/`replace`/`mutate`). The capability bridge
+ * supports both, so either shape is a usable contract; anything else is not.
+ */
+function settingsCapability(value: unknown): DshHostCapability {
+	if (value === undefined || value === null) return { state: "missing", contract: "settings-register-v1" };
+	const candidate = record(value);
+	const has = (method: string): boolean => candidate !== undefined && typeof candidate[method] === "function";
+	if (has("register")) return { state: "available", contract: "settings-register-v1" };
+	if (has("describe") && (has("update") || has("replace")))
+		return { state: "available", contract: "settings-forms-v1" };
+	return {
+		state: "incompatible",
+		contract: "settings-register-v1",
+		reason: "service shape does not match the verified contract",
+	};
+}
+
 function asOwnerRequestPolicy(value: unknown): OwnerRequestPolicy | undefined {
 	const candidate = record(value);
 	return candidate !== undefined &&
@@ -122,7 +142,7 @@ export function createDshHostAdapter(context: Context): DshHostAdapter {
 		compatibility(options: CompatibilityOptions = {}) {
 			const capabilities: Readonly<Record<string, DshHostCapability>> = {
 				webServer: capability(service(context, "webServer"), "exact-route-v1", ["register"]),
-				settings: capability(service(context, "settings"), "settings-register-v1", ["register"]),
+				settings: settingsCapability(service(context, "settings")),
 				credentials: capability(service(context, "credentials"), "credential-resolver-v1", ["resolve"]),
 				llm: capability(service(context, "llm"), "llm-adapter-registry-v1", ["registerAdapter"]),
 				ownerRequestPolicy: capability(service(context, "ownerRequestPolicy"), "owner-request-policy-v1", [

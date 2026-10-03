@@ -3,7 +3,7 @@
  * @module dsh-coding-subscription-oauth/gateway-backend
  */
 
-import type { Api, Context, Message, Model, ThinkingLevel, Tool } from "@earendil-works/pi-ai";
+import type { Api, Context, JsonObject, JsonValue, Message, Model, ThinkingLevel, Tool } from "@earendil-works/pi-ai";
 import {
 	type GatewayChatMessage,
 	type GatewayCompletionRequest,
@@ -166,7 +166,7 @@ export function assistantReplay(message: GatewayChatMessage): Message {
 	const content: Array<
 		| { type: "text"; text: string }
 		| { type: "thinking"; thinking: string }
-		| { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> }
+		| { type: "toolCall"; id: string; name: string; arguments: JsonObject }
 	> = [];
 	const needsPlaceholder = message.tool_calls !== undefined && message.tool_calls.length > 0;
 	const reasoning = message.reasoning_content ?? (needsPlaceholder ? "" : undefined);
@@ -202,12 +202,12 @@ function toPiTool(tool: GatewayTool): Tool {
 	};
 }
 
-function parseToolArguments(raw: string): Record<string, unknown> {
+function parseToolArguments(raw: string): JsonObject {
 	try {
 		const value = JSON.parse(raw) as unknown;
 		return typeof value === "object" && value !== null && !Array.isArray(value)
-			? (value as Record<string, unknown>)
-			: { value };
+			? (value as JsonObject)
+			: { value: value as JsonValue };
 	} catch {
 		return { value: raw };
 	}

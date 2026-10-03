@@ -366,7 +366,15 @@ describe("createCodingOAuthAdapter model discovery", () => {
 		const attachments = {
 			readImageRequest: async (_ref: unknown, policy: { maxPixels?: number; maxBytes?: number }) => {
 				attachmentPolicies.push(policy);
-				return { type: "image", data: new Uint8Array([137, 80, 78, 71]), mediaType: "image/png" };
+				// dsh-llm-pi-ai 0.2.0-rc.2 accounts every retained image occurrence against
+				// profile.maxRequestImageBytes through the request version's exact `bytes`;
+				// a missing value makes the budget check demand an offload.
+				return {
+					type: "image",
+					data: new Uint8Array([137, 80, 78, 71]),
+					mediaType: "image/png",
+					bytes: 4,
+				};
 			},
 		};
 		const dir = await mkdtemp(join(tmpdir(), "dsh-coding-oauth-fast-stream-"));
@@ -441,8 +449,10 @@ describe("createCodingOAuthAdapter model discovery", () => {
 									attachmentId: AttachmentId("attachment-policy"),
 									mediaType: "image/png",
 									bytes: 4,
-									width: 1,
-									height: 1,
+									// Larger than the profile's 2048x2048 pixel budget, so the
+									// projected request target below proves the budget was applied.
+									width: 4096,
+									height: 4096,
 								},
 							},
 						],
@@ -466,9 +476,11 @@ describe("createCodingOAuthAdapter model discovery", () => {
 		await expect(fast?.options?.onPayload?.({ model: eligibleId }, { id: eligibleId })).resolves.toMatchObject({
 			service_tier: "priority",
 		});
+		// dsh-llm-pi-ai 0.2.0-rc.2 hands the attachment store a projected target
+		// (dimensions + byte cap) instead of the raw `maxPixels` budget.
 		expect(attachmentPolicies).toEqual([
-			{ maxPixels: 2048 * 2048, maxBytes: 1024 * 1024 },
-			{ maxPixels: 2048 * 2048, maxBytes: 1024 * 1024 },
+			{ width: 2048, height: 2048, maxBytes: 1024 * 1024 },
+			{ width: 2048, height: 2048, maxBytes: 1024 * 1024 },
 		]);
 		const replayState = {
 			response: {

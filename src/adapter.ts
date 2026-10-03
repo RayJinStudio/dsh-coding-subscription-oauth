@@ -144,7 +144,10 @@ function profile(
 		modelErrors: new Map(),
 		...REQUEST_IMAGE_POLICY,
 		...(headers === undefined ? {} : { headers }),
-		piProvider,
+		// dsh-llm-pi-ai 0.2.0-rc.2 declares `piProvider?: Provider` under
+		// `exactOptionalPropertyTypes`, so an explicitly `undefined` key is rejected:
+		// the route must omit the property entirely when no provider was constructed.
+		...(piProvider === undefined ? {} : { piProvider }),
 	};
 }
 

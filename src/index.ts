@@ -30,6 +30,7 @@ import {
 	type CapabilitySettingsPatch,
 	CapabilitySettingsSchema,
 	type CapabilitySettingsService,
+	type CapabilityVolatileSection,
 	createCapabilitySettingsController,
 	resolveCapabilitySettings,
 } from "./capability-settings.ts";
@@ -277,7 +278,7 @@ export interface Config {
 	 */
 	retryPolicy?: RetryPolicyConfig;
 	/** Secret-free composition/YAML defaults below live user settings. */
-	capabilities?: CapabilitySettingsPatch;
+	capabilities?: CapabilitySettingsPatch | CapabilityVolatileSection<CapabilitySettingsPatch>;
 	/** Opt-in isolated local OpenAI-compatible gateway. Default off. */
 	gateway?: Partial<GatewayConfig>;
 	/** Owner-only request authorization for loopback, SSH tunnels, and trusted HTTPS proxies. */
@@ -292,11 +293,44 @@ export interface Config {
 	};
 }
 
-export const Config: z<Config> = z.object({
+/**
+ * Whether a Config field arrived as a 0.2.x volatile reference instead of a value.
+ * @param value - the raw `config.capabilities` field.
+ */
+function isVolatileSection(value: unknown): value is CapabilityVolatileSection<CapabilitySettingsPatch> {
+	return typeof value === "object" && value !== null && typeof (value as { get?: unknown }).get === "function";
+}
+
+/**
+ * Read the capability section out of a Config field that is volatile on 0.2.x (a live
+ * reference committed by the running fiber) and a plain parsed object on 0.1.x.
+ * @param value - the raw `config.capabilities` field.
+ * @returns the current section, or undefined when the field is absent.
+ */
+function readCapabilitySection(value: Config["capabilities"]): CapabilitySettingsPatch | undefined {
+	if (value === undefined) return undefined;
+	return isVolatileSection(value) ? value.get() : (value as CapabilitySettingsPatch);
+}
+
+/**
+ * Live reader for a volatile Config field. A plain 0.1.x section is only a composition
+ * base, so it must not shadow the injected settings service.
+ * @param value - the raw `config.capabilities` field.
+ * @returns a reader, or undefined when the field is not volatile.
+ */
+function capabilityVolatileReader(
+	value: Config["capabilities"],
+): (() => CapabilitySettingsPatch | undefined) | undefined {
+	return isVolatileSection(value) ? () => value.get() : undefined;
+}
+
+// The volatile `capabilities` field makes the parsed Config differ from the declared
+// interface on purpose, so the schema keeps its inferred type instead of `z<Config>`.
+export const Config = z.object({
 	proxy: z.string(),
 	proxyKimi: z.boolean().default(false),
 	retryPolicy: RetryPolicySchema,
-	capabilities: CapabilitySettingsSchema,
+	capabilities: CapabilitySettingsSchema.volatile(),
 	gateway: GatewayConfigSchema,
 	ownerRequest: z.object({
 		loopbackAccessMode: z.union([z.const("loopback"), z.const("ssh-tunnel")]),
@@ -461,7 +495,9 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	);
 	ctx.effect(() => () => proxyLease.release(), "dsh-coding-subscription-oauth: scoped proxy policy");
 	const logger = ctx.logger(name);
-	const baseCapabilities = resolveCapabilitySettings(config.capabilities);
+	const capabilityBase = readCapabilitySection(config.capabilities);
+	const capabilityVolatile = capabilityVolatileReader(config.capabilities);
+	const baseCapabilities = resolveCapabilitySettings(capabilityBase);
 	const runtime = new CapabilityRuntimeState(baseCapabilities, () => {
 		logger.warn("an optional capability listener failed");
 	});
@@ -520,7 +556,8 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	let settingsOwner = 0;
 	const createFallbackCapabilityController = (): ReturnType<typeof createCapabilitySettingsController> =>
 		createCapabilitySettingsController({
-			...(config.capabilities === undefined ? {} : { base: config.capabilities }),
+			...(capabilityBase === undefined ? {} : { base: capabilityBase }),
+			...(capabilityVolatile === undefined ? {} : { volatileSection: capabilityVolatile }),
 			onListenerError: () => logger.warn("a capability settings listener failed"),
 		});
 	let capabilityController = createFallbackCapabilityController();
@@ -549,7 +586,11 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		const previousController = capabilityController;
 		const controller = createCapabilitySettingsController({
 			settings: settingsCtx.get("settings") as CapabilitySettingsService,
-			...(config.capabilities === undefined ? {} : { base: config.capabilities }),
+			// DSH 0.2.x addresses settings by profile plugin entry id: this plugin's
+			// composed entry is `name`, the same id the loader assigns in cordis.yml.
+			entryNamespace: name,
+			...(capabilityVolatile === undefined ? {} : { volatileSection: capabilityVolatile }),
+			...(capabilityBase === undefined ? {} : { base: capabilityBase }),
 			onListenerError: () => logger.warn("a capability settings listener failed"),
 		});
 		capabilityController = controller;

@@ -156,6 +156,7 @@ export interface CapabilitySettingsService {
 	get?(ns: string): unknown;
 	update?(ns: string, patch: object, expectedRevision?: number): Promise<void>;
 	replace?(ns: string, section: object, expectedRevision?: number): Promise<void>;
+	mutate?(ns: string, ops: readonly CapabilitySettingsPathOp[], expectedRevision?: number): Promise<void>;
 	register?(
 		ns: string,
 		schema: CapabilitySettingsSchemaType,
@@ -167,10 +168,37 @@ export interface CapabilitySettingsService {
 	): CapabilitySettingsScope;
 }
 
+/** One path-addressed entry-config edit, mirroring the Host's `settings.mutate()` wire form. */
+export interface CapabilitySettingsPathOp {
+	readonly op: "set" | "unset";
+	readonly path: readonly string[];
+	readonly value?: unknown;
+}
+
+/**
+ * A 0.2.x `.volatile()` Config field: the loader hands the plugin a live reference
+ * whose `get()` returns the value committed by the running fiber, instead of the
+ * parsed object 0.1.x passed through.
+ */
+export interface CapabilityVolatileSection<T> {
+	get(): T | undefined;
+}
+
 /** Construction options. `base` is the YAML / composition entry layered under the user section. */
 export interface CapabilitySettingsControllerOptions {
 	readonly settings?: CapabilitySettingsService | undefined;
 	readonly base?: CapabilitySettingsPatch | undefined;
+	/**
+	 * Live reader for a volatile Config section. Preferred over `describe()` because it
+	 * is the value the Host actually committed into this plugin's fiber.
+	 */
+	readonly volatileSection?: (() => unknown) | undefined;
+	/**
+	 * Profile plugin entry id owning this plugin's Config under the 0.2.x form model
+	 * (the composed entry id, normally the plugin's exported `name`). Used when
+	 * `describe()` does not show which entry carries the capability section.
+	 */
+	readonly entryNamespace?: string | undefined;
 	/** Contain both synchronous and asynchronous observer failures. */
 	readonly onListenerError?: ((error: unknown) => void) | undefined;
 }
@@ -385,9 +413,12 @@ export class CapabilitySettingsController {
 	private readonly settings: CapabilitySettingsService | undefined;
 	private readonly base: CapabilitySettingsPatch;
 	private readonly onListenerError: (error: unknown) => void;
+	private readonly configuredEntryNamespace: string | undefined;
+	private readonly volatileSection: (() => unknown) | undefined;
 	private readonly listeners = new Set<CapabilitySettingsListener>();
 	private scope: CapabilitySettingsScope | undefined;
 	private scopeDisposer: (() => void) | undefined;
+	private resolvedNamespace: string | undefined;
 	private localRevision = 0;
 	private lastSnapshot: CapabilitySettingsSnapshot;
 	private disposed = false;
@@ -395,6 +426,11 @@ export class CapabilitySettingsController {
 	constructor(options: CapabilitySettingsControllerOptions = {}) {
 		this.settings = options.settings;
 		this.base = normalizeCapabilitySettingsPatch(options.base);
+		this.configuredEntryNamespace =
+			typeof options.entryNamespace === "string" && options.entryNamespace.length > 0
+				? options.entryNamespace
+				: undefined;
+		this.volatileSection = options.volatileSection;
 		this.onListenerError = options.onListenerError ?? (() => undefined);
 		this.attachScope();
 		this.lastSnapshot = this.readSnapshot();
@@ -479,6 +515,56 @@ export class CapabilitySettingsController {
 		});
 	}
 
+	/**
+	 * Whether the attached service is the 0.2.x form model: one descriptor per profile
+	 * plugin entry, no dynamic `register()`. There the capability section is this
+	 * plugin entry's `capabilities` Config field, so reads unwrap it and writes address
+	 * the entry (and are applied with path ops to keep sibling fields intact).
+	 */
+	private get entryScoped(): boolean {
+		return (
+			this.settings !== undefined &&
+			typeof this.settings.register !== "function" &&
+			typeof this.settings.describe === "function"
+		);
+	}
+
+	/**
+	 * Namespace the attached service addresses. 0.1.x registered this plugin's own
+	 * namespace; 0.2.x only accepts profile plugin entries, so resolve the entry that
+	 * owns this plugin's Config once and reuse it.
+	 * @returns the legacy namespace, or the owning entry id under the form model.
+	 */
+	hostNamespace(): string {
+		if (this.resolvedNamespace !== undefined) return this.resolvedNamespace;
+		this.resolvedNamespace = this.resolveHostNamespace();
+		return this.resolvedNamespace;
+	}
+
+	private resolveHostNamespace(): string {
+		if (!this.entryScoped) return CAPABILITY_SETTINGS_NAMESPACE;
+		let descriptors: readonly CapabilitySettingsDescriptor[] | undefined;
+		try {
+			const described = this.settings?.describe?.({ redactSecrets: true });
+			if (Array.isArray(described)) descriptors = described;
+		} catch {
+			descriptors = undefined;
+		}
+		// A service that still lists this plugin's own namespace keeps the 0.1.x address.
+		if (descriptors?.some((entry) => entry?.ns === CAPABILITY_SETTINGS_NAMESPACE) === true) {
+			return CAPABILITY_SETTINGS_NAMESPACE;
+		}
+		// The composed entry id is authoritative when the caller knows it: an entry with
+		// no user section yet can be absent from describe() while still accepting writes.
+		if (this.configuredEntryNamespace !== undefined) return this.configuredEntryNamespace;
+		const owner = descriptors?.find((entry) => capabilitySectionOf(entry?.value) !== undefined);
+		return typeof owner?.ns === "string" && owner.ns.length > 0 ? owner.ns : CAPABILITY_SETTINGS_NAMESPACE;
+	}
+
+	private describedSection(value: unknown): unknown {
+		return this.entryScoped ? capabilitySectionOf(value) : value;
+	}
+
 	private writeReason(): "absent" | "read-only" | "disposed" | undefined {
 		if (this.disposed) return "disposed";
 		if (this.settings === undefined) return "absent";
@@ -486,6 +572,7 @@ export class CapabilitySettingsController {
 		const canWrite =
 			typeof this.settings.update === "function" ||
 			typeof this.settings.replace === "function" ||
+			typeof this.settings.mutate === "function" ||
 			this.scope !== undefined;
 		if (!canWrite) return "read-only";
 		return undefined;
@@ -511,7 +598,9 @@ export class CapabilitySettingsController {
 		if (mode === "update" && !hasOwnKeys(normalized)) return current;
 		const settings = this.settings!;
 		try {
-			if (mode === "update") {
+			if (this.entryScoped) {
+				await this.writeEntryScoped(settings, mode, normalized, expectedRevision);
+			} else if (mode === "update") {
 				if (typeof settings.update === "function") {
 					await settings.update(CAPABILITY_SETTINGS_NAMESPACE, { ...normalized }, expectedRevision);
 				} else {
@@ -534,12 +623,20 @@ export class CapabilitySettingsController {
 	private readSnapshot(): CapabilitySettingsSnapshot {
 		const writable = this.isWritable();
 		const described = this.readDescribed();
-		const base = described?.base !== undefined ? normalizeCapabilitySettingsPatch(described.base) : this.base;
-		const user = described?.user !== undefined ? normalizeCapabilitySettingsPatch(described.user) : undefined;
+		const describedBase = this.describedSection(described?.base);
+		const describedUser = this.describedSection(described?.user);
+		const describedValue = this.describedSection(described?.value);
+		const base = describedBase !== undefined ? normalizeCapabilitySettingsPatch(describedBase) : this.base;
+		const user = describedUser !== undefined ? normalizeCapabilitySettingsPatch(describedUser) : undefined;
+		// A volatile Config section is the value this plugin's fiber actually runs with,
+		// so it wins over both the described entry form and the composition base.
+		const live = this.readVolatileSection();
 		const resolved =
-			described?.value !== undefined
-				? normalizeCapabilitySettings(described.value)
-				: this.readResolvedFromService(base, user);
+			live !== undefined
+				? normalizeCapabilitySettings(live)
+				: describedValue !== undefined
+					? normalizeCapabilitySettings(describedValue)
+					: this.readResolvedFromService(base, user);
 		const revision =
 			typeof described?.revision === "number" && Number.isFinite(described.revision)
 				? described.revision
@@ -556,13 +653,60 @@ export class CapabilitySettingsController {
 		});
 	}
 
+	private readVolatileSection(): unknown {
+		try {
+			return this.volatileSection?.();
+		} catch {
+			return undefined;
+		}
+	}
+
 	private readResolvedFromService(
 		base: CapabilitySettingsPatch,
 		user: CapabilitySettingsPatch | undefined,
 	): CapabilitySettings {
-		const raw = this.scope?.get() ?? this.settings?.get?.(CAPABILITY_SETTINGS_NAMESPACE);
+		const raw = this.scope?.get() ?? this.readServiceValue();
 		if (raw !== undefined) return normalizeCapabilitySettings(raw);
 		return resolveCapabilitySettings(base, user);
+	}
+
+	private readServiceValue(): unknown {
+		const get = this.settings?.get;
+		if (get === undefined) return undefined;
+		return this.describedSection(get.call(this.settings, this.hostNamespace()));
+	}
+
+	/**
+	 * Apply one edit through the 0.2.x form model. `mutate()` is preferred because a
+	 * shallow `update()` of the entry would drop the capability keys a sparse patch
+	 * does not restate; `replace` resets the section instead of the whole entry.
+	 */
+	private async writeEntryScoped(
+		settings: CapabilitySettingsService,
+		mode: "update" | "replace",
+		normalized: CapabilitySettingsPatch,
+		expectedRevision: number,
+	): Promise<void> {
+		const ns = this.hostNamespace();
+		const keys = Object.keys(normalized);
+		const mutate = settings.mutate;
+		if (typeof mutate === "function") {
+			const ops: CapabilitySettingsPathOp[] =
+				mode === "replace"
+					? [{ op: "set", path: ["capabilities"], value: { ...normalized } }]
+					: keys.map((key) => ({
+							op: "set" as const,
+							path: ["capabilities", key],
+							value: normalized[key as keyof CapabilitySettingsPatch],
+						}));
+			await mutate.call(settings, ns, ops, expectedRevision);
+			return;
+		}
+		if (typeof settings.update === "function") {
+			await settings.update(ns, { capabilities: { ...normalized } }, expectedRevision);
+			return;
+		}
+		throw new CapabilitySettingsReadOnlyError("read-only");
 	}
 
 	private readDescribed(): CapabilitySettingsDescriptor | undefined {
@@ -571,7 +715,8 @@ export class CapabilitySettingsController {
 		try {
 			const descriptors = describe.call(this.settings, { redactSecrets: true });
 			if (!Array.isArray(descriptors)) return undefined;
-			return descriptors.find((entry) => entry?.ns === CAPABILITY_SETTINGS_NAMESPACE);
+			const ns = this.hostNamespace();
+			return descriptors.find((entry) => entry?.ns === ns);
 		} catch {
 			return undefined;
 		}
@@ -617,6 +762,16 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const proto = Object.getPrototypeOf(value);
 	return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Read the capability section out of one 0.2.x settings descriptor, whose value is
+ * the owning plugin entry's whole Config (`{ capabilities, … }`) rather than the
+ * bare section 0.1.x registered under this plugin's own namespace.
+ */
+function capabilitySectionOf(value: unknown): unknown {
+	if (!isPlainObject(value)) return undefined;
+	return isPlainObject(value["capabilities"]) ? value["capabilities"] : undefined;
 }
 
 function assertPlainObject(value: unknown, label: string): asserts value is Record<string, unknown> {

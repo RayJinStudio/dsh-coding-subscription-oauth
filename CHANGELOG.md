@@ -4,6 +4,17 @@ All notable changes to `dsh-coding-subscription-oauth` are documented here, foll
 
 ## Unreleased
 
+### Added
+
+- Verify against DeepSeek Harness `0.2.0-rc.2`: the exact BOM now pins `@deepseek-ai/dsh-*@0.2.0-rc.2`, `@deepseek-ai/cordis@4.0.4`, `@deepseek-ai/schemastery@3.18.4`, and `@earendil-works/pi-ai@0.87.1`, so the host compatibility gate accepts the plugin again.
+- Serve the capability flags as a volatile plugin Config field (`capabilities`) addressed by the composed profile entry id. DSH 0.2.x removed the dynamic `settings.register()` namespace, so reads come from the live volatile section and writes go through the entry form model (`describe`/`mutate`), persisting into the profile's `cordis.patch.yml`; the 0.1.x register path is unchanged.
+
+### Fixed
+
+- Omit `piProvider` from a resolved pi-ai provider profile instead of passing an explicit `undefined`, which `exactOptionalPropertyTypes` rejects on `dsh-llm-pi-ai` 0.2.0-rc.2.
+- Type replayed gateway tool-call arguments as pi-ai's `JsonObject`, matching the tightened `ToolCall` contract in pi-ai 0.87.
+- Build provider-stream test contexts through `normalizeContext()` and report the attachment request version's exact `bytes`, so the new request-image budget guard sees a real size instead of demanding an offload.
+
 ## v0.8.5 - 2026-09-15
 
 ### Fixed

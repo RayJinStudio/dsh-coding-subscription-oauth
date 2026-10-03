@@ -17,7 +17,7 @@ dsh plugin --profile web update dsh-coding-subscription-oauth
 
 ## 前置条件
 
-- DeepSeek Harness `0.1.1-rc.2`（精确已验证 BOM，见 `compatibility/dsh-bom.json`）
+- DeepSeek Harness `0.2.0-rc.2`（精确已验证 BOM，见 `compatibility/dsh-bom.json`）
 - Node.js 22.19+
 - 需要使用的个人编码订阅；没有 Claude/Google 账号也可以先安装路由
 - 部分网络需要 HTTP/HTTPS 代理
@@ -44,7 +44,8 @@ dsh plugin --profile web add dsh-agy@0.1.2
 
 ## 升级注意事项
 
-- 本版按 DSH `0.1.1-rc.2` 的精确兼容矩阵发布；生产环境应锁定已验证的 BOM，不要用 `*` 或未验证的宽泛 peer range。候选宿主（如 `0.1.5-rc.1`）只记在 `candidates[]`，须经隔离冒烟后再考虑提升。
+- 本版按 DSH `0.2.0-rc.2` 的精确兼容矩阵发布；生产环境应锁定已验证的 BOM，不要用 `*` 或未验证的宽泛 peer range。候选宿主（如 `0.1.5-rc.1`）只记在 `candidates[]`，须经隔离冒烟后再考虑提升。
+- 宿主 `0.2.0-rc.2` 适配（本 fork）：BOM 提升为 `@deepseek-ai/dsh-*@0.2.0-rc.2`、`@deepseek-ai/cordis@4.0.4`、`@deepseek-ai/schemastery@3.18.4`、`@earendil-works/pi-ai@0.87.1`；Capabilities 改为 DSH 0.2 的 volatile Config 字段（`capabilities`），按 profile 条目 id（`llm-grok-build-oauth`）读写，落盘在该 profile 的 `cordis.patch.yml`。0.2.x 已移除动态 `settings.register()` 命名空间，升级后能力开关仍可写入。无配置、凭据、数据或路由的破坏性迁移。
 - 从 `0.6.0` 升级到 `0.6.2` 后再重启：`0.6.0` 在严格 Cordis 注入检查下可能因读取尚未注入的可选服务而拖垮插件树。这个补丁不迁移或重置 OAuth 凭据、Gateway、模型/适配器 ID 与缓存。
 - 从 `0.6.3` 升级到 `0.6.4`：统一固定 `dsh-coding-oauth-core@0.1.2` 与 `undici@7.29.0`；无配置、凭据、数据或路由迁移。
 - 从 `0.7.1` 升级到 `0.8.0`：可选 OpenCode Go 兼容（`gateway.opencodeGo.enabled`，默认关）；无配置/凭据/路由迁移。

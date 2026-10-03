@@ -87,10 +87,10 @@ ENV CI=1 \
     NPM_CONFIG_LOGLEVEL=info
 RUN npm config get registry \
     && npm ping --registry=https://registry.npmjs.org/ \
-    && npm view @deepseek-ai/dsh@0.1.1-rc.2 version --registry=https://registry.npmjs.org/ \
+    && npm view @deepseek-ai/dsh@0.2.0-rc.2 version --registry=https://registry.npmjs.org/ \
     && mkdir -p /opt/dsh \
     && printf '{"name":"dsh-rc2-smoke","private":true}\n' > /opt/dsh/package.json \
-    && npm install --prefix /opt/dsh --ignore-scripts --loglevel=verbose --registry=https://registry.npmjs.org/ @deepseek-ai/dsh@0.1.1-rc.2 \
+    && npm install --prefix /opt/dsh --ignore-scripts --loglevel=verbose --registry=https://registry.npmjs.org/ @deepseek-ai/dsh@0.2.0-rc.2 \
     && npm install --global pnpm@11.21.0 --ignore-scripts --loglevel=info
 
 FROM dsh-installed AS rc2-compatibility

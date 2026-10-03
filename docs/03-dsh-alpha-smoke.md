@@ -7,7 +7,7 @@ Use this cadence for hosts listed under `compatibility/dsh-bom.json` → `candid
 ## Rules
 
 - Isolated `DSH_HOME=/tmp/dsh-verify-sub-<ver>` only.
-- Prefix-install the candidate CLI; do **not** overwrite the global verified `0.1.1-rc.2` pin.
+- Prefix-install the candidate CLI; do **not** overwrite the global verified `0.2.0-rc.2` pin.
 - High port (default `18381`); never `3080`.
 - Never restart operator `dsh-web`.
 - Do **not** use `smoke:deployed` for this cadence (touches real sessions).
@@ -35,4 +35,4 @@ pnpm run smoke:dsh-alpha
 2. Non-loopback `Host` → **403**
 3. On `0.1.5-rc.1`: no Cordis startup failure from a stale `dsh-client-runtime` inject requirement
 
-Production pin remains `0.1.1-rc.2` until deliberately promoted.
+Production pin remains `0.2.0-rc.2` until deliberately promoted.

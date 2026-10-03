@@ -9,6 +9,7 @@ import {
 	CapabilitySettingsController,
 	type CapabilitySettingsDescriptor,
 	type CapabilitySettingsPatch,
+	type CapabilitySettingsPathOp,
 	CapabilitySettingsReadOnlyError,
 	CapabilitySettingsSchema,
 	type CapabilitySettingsSchemaType,
@@ -266,6 +267,129 @@ describe("CapabilitySettingsController without a provider", () => {
 		});
 		await expect(controller.replace({}, 0)).rejects.toSatisfy(isCapabilitySettingsReadOnlyError);
 		expect(controller.snapshot().value.grokImagineImage).toBe(false);
+	});
+});
+
+describe("CapabilitySettingsController with a 0.2.x form provider", () => {
+	const ENTRY_NS = "dsh-coding-subscription-oauth";
+
+	/** Structural stand-in for `SettingsForms`: one entry per profile plugin, no register(). */
+	class FakeSettingsForms implements CapabilitySettingsService {
+		writable = true;
+		readonly entries = new Map<string, { value: Record<string, unknown>; revision: number }>();
+
+		constructor(
+			capabilities: Record<string, unknown>,
+			revision = 7,
+			private readonly listed = true,
+		) {
+			this.entries.set(ENTRY_NS, {
+				value: { ownerRequest: {}, capabilities: { ...capabilities } },
+				revision,
+			});
+		}
+
+		describe(): CapabilitySettingsDescriptor[] {
+			if (!this.listed) return [];
+			const entry = this.entries.get(ENTRY_NS)!;
+			return [
+				{
+					ns: ENTRY_NS,
+					value: structuredClone(entry.value),
+					base: { capabilities: {} },
+					revision: entry.revision,
+					applies: "live" as const,
+					secrets: [],
+				},
+			];
+		}
+
+		async mutate(ns: string, ops: readonly CapabilitySettingsPathOp[], expectedRevision?: number): Promise<void> {
+			const entry = this.entries.get(ns);
+			if (entry === undefined) throw new Error(`unknown profile entry "${ns}"`);
+			if (expectedRevision !== undefined && expectedRevision !== entry.revision) {
+				throw new SettingsConflictError(expectedRevision, entry.revision);
+			}
+			for (const op of ops) {
+				const [head, ...rest] = op.path;
+				expect(op.op).toBe("set");
+				if (head !== "capabilities") continue;
+				if (rest.length === 0) {
+					entry.value["capabilities"] = structuredClone(op.value) as Record<string, unknown>;
+					continue;
+				}
+				const section = entry.value["capabilities"] as Record<string, unknown>;
+				section[rest[0]!] = op.value;
+			}
+			entry.revision += 1;
+		}
+
+		capabilities(): Record<string, unknown> {
+			return this.entries.get(ENTRY_NS)!.value["capabilities"] as Record<string, unknown>;
+		}
+	}
+
+	it("resolves the owning profile entry and reads its capability section", () => {
+		const settings = new FakeSettingsForms({ codexSearch: true, searchResults: 3 });
+		const controller = new CapabilitySettingsController({ settings });
+		const snapshot = controller.snapshot();
+		expect(controller.hostNamespace()).toBe(ENTRY_NS);
+		expect(snapshot.ns).toBe(CAPABILITY_SETTINGS_NAMESPACE);
+		expect(snapshot.revision).toBe(7);
+		expect(snapshot.value).toEqual({ ...DEFAULT_CAPABILITY_SETTINGS, codexSearch: true, searchResults: 3 });
+	});
+
+	it("patches leaf fields through mutate without dropping sibling capability keys", async () => {
+		const settings = new FakeSettingsForms({ codexSearch: true, searchResults: 3 });
+		const controller = new CapabilitySettingsController({ settings });
+		const next = await controller.patch({ codexImages: true }, 7);
+		expect(settings.capabilities()).toEqual({ codexSearch: true, searchResults: 3, codexImages: true });
+		expect(next.value).toEqual({
+			...DEFAULT_CAPABILITY_SETTINGS,
+			codexSearch: true,
+			searchResults: 3,
+			codexImages: true,
+		});
+	});
+
+	it("replaces the whole capability section instead of the profile entry", async () => {
+		const settings = new FakeSettingsForms({ codexSearch: true, searchResults: 3 });
+		const controller = new CapabilitySettingsController({ settings });
+		const next = await controller.replace({}, 7);
+		expect(settings.capabilities()).toEqual({});
+		expect(settings.entries.get(ENTRY_NS)!.value["ownerRequest"]).toEqual({});
+		expect(next.value).toEqual(DEFAULT_CAPABILITY_SETTINGS);
+	});
+
+	it("surfaces a stale revision as a settings conflict", async () => {
+		const settings = new FakeSettingsForms({ codexSearch: true });
+		const controller = new CapabilitySettingsController({ settings });
+		await expect(controller.patch({ codexImages: true }, 1)).rejects.toSatisfy(isCapabilitySettingsConflictError);
+	});
+
+	it("prefers the live volatile Config section over the described entry value", () => {
+		let live: Record<string, unknown> = { codexSearch: true, imageCount: 4 };
+		const settings = new FakeSettingsForms({}, 3);
+		const controller = new CapabilitySettingsController({
+			settings,
+			entryNamespace: ENTRY_NS,
+			volatileSection: () => live,
+		});
+		expect(controller.current()).toEqual({ ...DEFAULT_CAPABILITY_SETTINGS, codexSearch: true, imageCount: 4 });
+		live = { codexUsage: true };
+		expect(controller.current()).toEqual({ ...DEFAULT_CAPABILITY_SETTINGS, codexUsage: true });
+	});
+
+	it("writes to the configured entry id even before describe() lists the entry", async () => {
+		// A composed entry with no user section can be absent from describe() while the
+		// Host still accepts writes against its id, so the controller must not fall back
+		// to the 0.1.x namespace there.
+		const settings = new FakeSettingsForms({}, 0, false);
+		const controller = new CapabilitySettingsController({ settings, entryNamespace: ENTRY_NS });
+		expect(controller.hostNamespace()).toBe(ENTRY_NS);
+		const next = await controller.patch({ codexSearch: true }, 0);
+		expect(settings.capabilities()).toEqual({ codexSearch: true });
+		expect(next.revision).toBe(1);
 	});
 });
 
