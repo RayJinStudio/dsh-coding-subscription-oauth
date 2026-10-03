@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { GO_APIS, type GoApi, isGoApi, knownGoApi } from "../../opencode-go-protocol.ts";
 import {
 	bodyStyle,
+	buttonStyle,
 	cardStyle,
 	checkRowStyle,
 	compactButtonStyle,
@@ -15,6 +16,7 @@ import {
 	warningStyle,
 } from "../styles.ts";
 import { Badge } from "./Badge.tsx";
+import { ProviderIcon } from "./ProviderIcons.tsx";
 
 export interface GoModel {
 	readonly id: string;
@@ -228,7 +230,10 @@ export function OpenCodeGoConnectionView({
 			style={cardStyle}
 		>
 			<div style={{ ...actions, justifyContent: "space-between", alignItems: "center" }}>
-				<strong style={{ ...titleStyle, fontSize: 16 }}>{t("title")}</strong>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<ProviderIcon kind="opencodeGo" size={20} />
+					<strong style={{ ...titleStyle, fontSize: 16 }}>{t("title")}</strong>
+				</div>
 				{status?.configuration.ready ? <Badge label={t("configured")} tone="success" /> : null}
 			</div>
 			<p style={{ ...bodyStyle, margin: 0 }}>{t(callKey)}</p>
@@ -288,7 +293,7 @@ export function OpenCodeGoConnectionView({
 					</button>
 				) : null}
 				{!showingForm && status ? (
-					<button type="button" style={compactButtonStyle} onClick={() => setEditing(true)}>
+					<button type="button" style={buttonStyle} onClick={() => setEditing(true)}>
 						{t("edit")}
 					</button>
 				) : null}
@@ -350,7 +355,7 @@ export function OpenCodeGoConnectionView({
 							{apiKey ? t("saveKey") : t("reuse")}
 						</button>
 						<button
-							style={compactButtonStyle}
+							style={buttonStyle}
 							type="button"
 							disabled={pending || !candidate?.configured}
 							onClick={() =>
@@ -408,7 +413,7 @@ export function OpenCodeGoConnectionView({
 						<div style={actions}>
 							<button
 								type="button"
-								style={compactButtonStyle}
+								style={buttonStyle}
 								disabled={pending || status?.configuration.writable !== true || visibleChoices.length === 0}
 								onClick={() => {
 									change();
@@ -420,7 +425,7 @@ export function OpenCodeGoConnectionView({
 							</button>
 							<button
 								type="button"
-								style={compactButtonStyle}
+								style={buttonStyle}
 								disabled={pending || status?.configuration.writable !== true || enabledIds.length === 0}
 								onClick={() => {
 									change();
@@ -533,7 +538,7 @@ export function OpenCodeGoConnectionView({
 							{t("apply")}
 						</button>
 						<button
-							style={compactButtonStyle}
+							style={buttonStyle}
 							type="button"
 							disabled={pending}
 							onClick={() =>
@@ -547,7 +552,7 @@ export function OpenCodeGoConnectionView({
 							{t("reload")}
 						</button>
 						<button
-							style={compactButtonStyle}
+							style={buttonStyle}
 							type="button"
 							disabled={pending}
 							onClick={() =>
@@ -582,7 +587,7 @@ export function OpenCodeGoConnectionView({
 					{!showingForm ? (
 						<div>
 							<button
-								style={compactButtonStyle}
+								style={buttonStyle}
 								type="button"
 								onClick={() =>
 									run(async () => {

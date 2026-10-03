@@ -1,6 +1,6 @@
 /** Accounts tab: provider cards, CLI tips, and pull preview. */
 
-import { Fragment, type ReactNode, useEffect, useRef } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { PROVIDERS } from "../constants.ts";
 import { allOfficialCliMissing, anyOfficialCliAvailable } from "../display.ts";
 import {
@@ -14,6 +14,7 @@ import {
 	skeletonStyle,
 	snippetStyle,
 	statusStyle,
+	TRANSITION,
 	titleStyle,
 } from "../styles.ts";
 import type {
@@ -30,6 +31,9 @@ import { CliPullPreview } from "./CliPullPreview.tsx";
 import { NoticeBanner } from "./NoticeBanner.tsx";
 import { OpenCodeGoCard } from "./OpenCodeGoCard.tsx";
 import { ProviderCard } from "./ProviderCard.tsx";
+import { ProviderIcon, type ProviderIconKind } from "./ProviderIcons.tsx";
+
+export type ProviderFilterId = "opencodeGo" | ProviderSlug | "antigravity";
 
 export interface AccountsTabProps {
 	renderCapabilities?: ((scope: "codex" | "grok") => ReactNode) | undefined;
@@ -116,9 +120,12 @@ export function AccountsTab({
 	onRefreshSources,
 	onDismissSourcesNotice,
 }: AccountsTabProps) {
+	const [selectedProvider, setSelectedProvider] = useState<ProviderFilterId>("opencodeGo");
 	const previousPreviewKind = useRef<ProviderSlug | undefined>(undefined);
+
 	useEffect(() => {
 		if (preview !== undefined) {
+			setSelectedProvider(preview.kind);
 			previousPreviewKind.current = preview.kind;
 			document.getElementById(`coding-oauth-source-preview-${preview.kind}`)?.focus();
 			return;
@@ -139,6 +146,85 @@ export function AccountsTab({
 			</div>
 		);
 	}
+
+	const providerTabs: readonly {
+		id: ProviderFilterId;
+		iconKind: ProviderIconKind;
+		label: string;
+		statusTone?: "success" | "info" | "error" | "neutral" | undefined;
+	}[] = [
+		{
+			id: "opencodeGo",
+			iconKind: "opencodeGo",
+			label: "OpenCode Go",
+			statusTone: status.opencodeGo.active ? "success" : undefined,
+		},
+		{
+			id: "grok",
+			iconKind: "grok",
+			label: "xAI Grok",
+			statusTone:
+				status.providers.grok.status === "signed-in"
+					? "success"
+					: status.providers.grok.status === "signing-in"
+						? "info"
+						: status.providers.grok.status === "error"
+							? "error"
+							: undefined,
+		},
+		{
+			id: "codex",
+			iconKind: "codex",
+			label: "OpenAI Codex",
+			statusTone:
+				status.providers.codex.status === "signed-in"
+					? "success"
+					: status.providers.codex.status === "signing-in"
+						? "info"
+						: status.providers.codex.status === "error"
+							? "error"
+							: undefined,
+		},
+		{
+			id: "kimi",
+			iconKind: "kimi",
+			label: "Kimi Code",
+			statusTone:
+				status.providers.kimi.status === "signed-in"
+					? "success"
+					: status.providers.kimi.status === "signing-in"
+						? "info"
+						: status.providers.kimi.status === "error"
+							? "error"
+							: undefined,
+		},
+		{
+			id: "claude",
+			iconKind: "claude",
+			label: "Claude Code",
+			statusTone:
+				status.providers.claude.status === "signed-in"
+					? "success"
+					: status.providers.claude.status === "signing-in"
+						? "info"
+						: status.providers.claude.status === "error"
+							? "error"
+							: undefined,
+		},
+		{
+			id: "antigravity",
+			iconKind: "antigravity",
+			label: "Antigravity",
+			statusTone: status.antigravity.installed ? "success" : undefined,
+		},
+	];
+
+	const getDotColor = (tone?: "success" | "info" | "error" | "neutral") => {
+		if (tone === "success") return "var(--dsw-alias-state-success-primary, #22a06b)";
+		if (tone === "info") return "var(--dsw-alias-brand-primary, #1677ff)";
+		if (tone === "error") return "var(--dsw-alias-state-error-primary, #d92d20)";
+		return undefined;
+	};
 
 	return (
 		<>
@@ -173,9 +259,74 @@ export function AccountsTab({
 					onDismiss={onDismissSourcesNotice}
 				/>
 			)}
-			<div style={accountGridStyle}>
-				<OpenCodeGoCard t={t} fallback={status.opencodeGo} onStartConversation={onStartConversation} />
-				{PROVIDERS.map((definition) => {
+			<div
+				role="tablist"
+				aria-label={t("providerFilterLabel")}
+				style={{
+					display: "flex",
+					flexWrap: "wrap",
+					gap: 6,
+					alignItems: "center",
+					padding: 4,
+					borderRadius: "var(--dsw-radius-lg, 16px)",
+					background: "var(--dsw-alias-bg-module-platform)",
+					border: "0.5px solid var(--dsw-alias-border-l2)",
+					marginBottom: 14,
+				}}
+			>
+				{providerTabs.map((tab) => {
+					const isSelected = selectedProvider === tab.id;
+					const dot = getDotColor(tab.statusTone);
+					return (
+						<button
+							key={tab.id}
+							type="button"
+							role="tab"
+							aria-selected={isSelected}
+							style={{
+								boxSizing: "border-box",
+								display: "inline-flex",
+								alignItems: "center",
+								gap: 7,
+								height: 38,
+								minHeight: 38,
+								padding: "0 14px",
+								borderRadius: "var(--dsw-radius-md, 12px)",
+								border: isSelected ? "0.5px solid var(--dsw-alias-border-l3)" : "none",
+								background: isSelected ? "var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-1))" : "transparent",
+								color: isSelected ? "var(--dsw-alias-label-primary)" : "var(--dsw-alias-label-secondary)",
+								fontWeight: isSelected ? 600 : 500,
+								fontSize: 13,
+								lineHeight: "20px",
+								cursor: "pointer",
+								transition: TRANSITION,
+								boxShadow: isSelected ? "0 1px 2px rgba(0, 0, 0, 0.08)" : "none",
+							}}
+							onClick={() => setSelectedProvider(tab.id)}
+						>
+							<ProviderIcon kind={tab.iconKind} size={14} />
+							<span>{tab.label}</span>
+							{dot ? (
+								<span
+									aria-hidden="true"
+									style={{
+										width: 6,
+										height: 6,
+										borderRadius: "50%",
+										background: dot,
+										flexShrink: 0,
+									}}
+								/>
+							) : null}
+						</button>
+					);
+				})}
+			</div>
+			<div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%" }}>
+				{selectedProvider === "opencodeGo" ? (
+					<OpenCodeGoCard t={t} fallback={status.opencodeGo} onStartConversation={onStartConversation} />
+				) : null}
+				{PROVIDERS.filter((d) => selectedProvider === d.slug).map((definition) => {
 					const providerStatus = status.providers[definition.slug];
 					const expanded = providerStatus.status === "signing-in" || expandedProviders[definition.slug] === true;
 					return (
@@ -243,24 +394,29 @@ export function AccountsTab({
 						</Fragment>
 					);
 				})}
-				<div style={cardStyle}>
-					<div style={rowStyle}>
-						<div>
-							<h3 style={{ ...titleStyle, fontSize: 16 }}>{t("antigravityTitle")}</h3>
-							<p style={{ ...bodyStyle, marginTop: 4 }}>{t("antigravityDescription")}</p>
-							<p style={{ ...bodyStyle, marginTop: 4 }}>
-								<span style={monoStyle}>{status.antigravity.route}</span>
-							</p>
+				{selectedProvider === "antigravity" ? (
+					<div style={cardStyle}>
+						<div style={rowStyle}>
+							<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+								<ProviderIcon kind="antigravity" size={20} />
+								<div>
+									<h3 style={{ ...titleStyle, fontSize: 16 }}>{t("antigravityTitle")}</h3>
+									<p style={{ ...bodyStyle, marginTop: 4 }}>{t("antigravityDescription")}</p>
+									<p style={{ ...bodyStyle, marginTop: 4 }}>
+										<span style={monoStyle}>{status.antigravity.route}</span>
+									</p>
+								</div>
+							</div>
+							<Badge
+								label={status.antigravity.installed ? t("antigravityInstalled") : t("antigravityMissing")}
+								tone={status.antigravity.installed ? "success" : "neutral"}
+								installed={status.antigravity.installed}
+							/>
 						</div>
-						<Badge
-							label={status.antigravity.installed ? t("antigravityInstalled") : t("antigravityMissing")}
-							tone={status.antigravity.installed ? "success" : "neutral"}
-							installed={status.antigravity.installed}
-						/>
+						<p style={bodyStyle}>{t("antigravityCliHint")}</p>
+						<code style={snippetStyle}>{t("antigravityCliCommand")}</code>
 					</div>
-					<p style={bodyStyle}>{t("antigravityCliHint")}</p>
-					<code style={snippetStyle}>{t("antigravityCliCommand")}</code>
-				</div>
+				) : null}
 			</div>
 		</>
 	);

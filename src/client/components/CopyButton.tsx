@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyText } from "../api.ts";
-import { compactButtonStyle, primaryButtonStyle } from "../styles.ts";
+import { buttonStyle, compactButtonStyle, compactPrimaryButtonStyle, primaryButtonStyle } from "../styles.ts";
 
 export interface CopyButtonProps {
 	text: string;
@@ -11,6 +11,7 @@ export interface CopyButtonProps {
 	failedLabel: string;
 	primary?: boolean;
 	disabled?: boolean;
+	compact?: boolean;
 }
 
 export function CopyButton({
@@ -20,6 +21,7 @@ export function CopyButton({
 	failedLabel,
 	primary = false,
 	disabled = false,
+	compact = false,
 }: CopyButtonProps) {
 	const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 	const timerRef = useRef<number | undefined>(undefined);
@@ -41,11 +43,18 @@ export function CopyButton({
 	}, [text]);
 
 	const label = state === "copied" ? copiedLabel : state === "failed" ? failedLabel : idleLabel;
+	const resolvedStyle = compact
+		? primary
+			? compactPrimaryButtonStyle
+			: compactButtonStyle
+		: primary
+			? primaryButtonStyle
+			: buttonStyle;
 
 	return (
 		<button
 			type="button"
-			style={primary ? primaryButtonStyle : compactButtonStyle}
+			style={resolvedStyle}
 			disabled={disabled || text.length === 0}
 			onClick={() => {
 				void handleClick();

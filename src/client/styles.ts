@@ -57,8 +57,8 @@ export const buttonStyle: CSSProperties = {
 	alignItems: "center",
 	justifyContent: "center",
 	gap: 6,
-	height: 36,
-	minHeight: 36,
+	height: 38,
+	minHeight: 38,
 	padding: "0 14px",
 	border: "0.5px solid var(--dsw-alias-border-l3)",
 	borderRadius: "var(--dsw-radius-md, 12px)",
@@ -66,8 +66,8 @@ export const buttonStyle: CSSProperties = {
 	color: "var(--dsw-alias-label-primary)",
 	boxShadow: "none",
 	font: "inherit",
-	fontSize: 13,
-	lineHeight: "20px",
+	fontSize: 14,
+	lineHeight: "22px",
 	fontWeight: 500,
 	cursor: "pointer",
 	transition: TRANSITION,
@@ -83,12 +83,9 @@ export const primaryButtonStyle: CSSProperties = {
 };
 export const compactButtonStyle: CSSProperties = {
 	...buttonStyle,
-	height: 28,
-	minHeight: 28,
-	padding: "0 10px",
-	fontSize: 12,
-	lineHeight: "18px",
-	borderRadius: "var(--dsw-radius-sm, 8px)",
+};
+export const compactPrimaryButtonStyle: CSSProperties = {
+	...primaryButtonStyle,
 };
 export const errorStyle: CSSProperties = { ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" };
 export const successStyle: CSSProperties = { ...bodyStyle, color: "var(--dsw-alias-state-success-primary, #22a06b)" };
@@ -159,16 +156,16 @@ export const checkRowStyle: CSSProperties = {
 export const inputStyle: CSSProperties = {
 	boxSizing: "border-box",
 	width: "100%",
-	height: 32,
-	minHeight: 32,
-	padding: "0 10px",
+	height: 38,
+	minHeight: 38,
+	padding: "0 12px",
 	border: "0.5px solid var(--dsw-alias-border-l4)",
 	borderRadius: "var(--dsw-radius-md, 12px)",
 	background: "var(--dsw-alias-bg-layer-1)",
 	color: "var(--dsw-alias-label-primary)",
 	font: "inherit",
-	fontSize: 13,
-	lineHeight: "20px",
+	fontSize: 14,
+	lineHeight: "22px",
 	transition: TRANSITION,
 };
 export const nestedStyle: CSSProperties = {

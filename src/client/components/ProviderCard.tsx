@@ -38,6 +38,7 @@ import type {
 import { Badge } from "./Badge.tsx";
 import { CopyButton } from "./CopyButton.tsx";
 import { ProgressBar } from "./ProgressBar.tsx";
+import { ProviderIcon } from "./ProviderIcons.tsx";
 
 export interface ProviderCardProps {
 	capabilitiesPanel?: ReactNode;
@@ -276,21 +277,24 @@ export function ProviderCard({
 				</p>
 			) : null}
 			<div style={rowStyle}>
-				<div>
-					<h3 style={{ ...titleStyle, fontSize: 16 }}>{t(definition.titleKey)}</h3>
-					{providerStatus.status === "signed-in" && !expanded ? (
-						<p style={{ ...hintStyle, marginTop: 4 }}>
-							{t("modelsSummary", { selected: selected.length, total: available.length })}
-							{usagePercent === undefined ? "" : ` · ${t("usageUsedShort", { value: `${String(usagePercent)}%` })}`}
-						</p>
-					) : (
-						<>
-							<p style={{ ...bodyStyle, marginTop: 4 }}>{t(definition.descriptionKey)}</p>
-							<p style={{ ...bodyStyle, marginTop: 4 }}>
-								<span style={monoStyle}>{definition.route}</span>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<ProviderIcon kind={definition.slug} size={20} />
+					<div>
+						<h3 style={{ ...titleStyle, fontSize: 16 }}>{t(definition.titleKey)}</h3>
+						{providerStatus.status === "signed-in" && !expanded ? (
+							<p style={{ ...hintStyle, marginTop: 4 }}>
+								{t("modelsSummary", { selected: selected.length, total: available.length })}
+								{usagePercent === undefined ? "" : ` · ${t("usageUsedShort", { value: `${String(usagePercent)}%` })}`}
 							</p>
-						</>
-					)}
+						) : (
+							<>
+								<p style={{ ...bodyStyle, marginTop: 4 }}>{t(definition.descriptionKey)}</p>
+								<p style={{ ...bodyStyle, marginTop: 4 }}>
+									<span style={monoStyle}>{definition.route}</span>
+								</p>
+							</>
+						)}
+					</div>
 				</div>
 				<Badge label={statusLabel} providerStatus={observed.status} />
 			</div>

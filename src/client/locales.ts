@@ -370,6 +370,8 @@ export const en = {
 	technicalDetails: "Technical details",
 	technicalDetailsUnavailable: "The technical error detail was hidden because it may contain a credential.",
 	accountsEmpty: "No saved accounts yet.",
+	providerAll: "All",
+	providerFilterLabel: "Filter by provider",
 };
 
 export type GrokBuildSettingsKey = keyof typeof en;
@@ -722,4 +724,6 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	technicalDetails: "技术详情",
 	technicalDetailsUnavailable: "技术错误详情可能包含凭据，已隐藏。",
 	accountsEmpty: "尚无已保存账号。",
+	providerAll: "全部",
+	providerFilterLabel: "按供应商筛选",
 };
