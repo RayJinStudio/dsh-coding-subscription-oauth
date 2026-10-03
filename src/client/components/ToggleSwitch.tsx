@@ -14,32 +14,33 @@ export interface ToggleSwitchProps {
 }
 
 const trackStyle = (checked: boolean, disabled: boolean): CSSProperties => ({
+	boxSizing: "border-box",
 	position: "relative",
-	width: 40,
-	height: 22,
-	borderRadius: 11,
+	width: 36,
+	height: 20,
+	borderRadius: 999,
 	flex: "0 0 auto",
-	background: checked
-		? "var(--dsw-alias-button-primary-fill)"
-		: "var(--dsw-alias-border-l4, rgba(127, 127, 127, 0.45))",
+	background: checked ? "var(--dsw-alias-button-primary-fill)" : "var(--dsw-alias-border-l3)",
 	opacity: disabled ? 0.5 : 1,
 	cursor: disabled ? "not-allowed" : "pointer",
 	transition: TRANSITION,
 	border: "none",
-	padding: 0,
+	padding: 2,
 });
 
 const thumbStyle = (checked: boolean): CSSProperties => ({
 	position: "absolute",
 	top: 2,
-	left: checked ? 20 : 2,
-	width: 18,
-	height: 18,
+	left: checked ? 18 : 2,
+	width: 16,
+	height: 16,
 	borderRadius: "50%",
 	// Match DSH primary fill/foreground pairing so the thumb stays visible when
 	// dark theme inverts brand-primary to near-white.
-	background: checked ? "var(--dsw-alias-label-primary-foreground)" : "var(--dsw-alias-button-elevated-fill)",
-	boxShadow: "0 1px 3px rgba(0, 0, 0, 0.25)",
+	background: checked
+		? "var(--dsw-alias-label-primary-foreground)"
+		: "var(--dsw-alias-switch-thumb, var(--dsw-alias-button-elevated-fill))",
+	boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
 	transition: TRANSITION,
 });
 

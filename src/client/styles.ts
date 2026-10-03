@@ -15,25 +15,25 @@ export const pageStyle: CSSProperties = {
 };
 export const titleStyle: CSSProperties = {
 	margin: 0,
-	fontSize: 20,
-	lineHeight: "28px",
+	fontSize: 18,
+	lineHeight: "26px",
 	fontWeight: 600,
 	color: "var(--dsw-alias-label-primary)",
 };
 export const bodyStyle: CSSProperties = {
 	margin: 0,
-	fontSize: 14,
-	lineHeight: "22px",
+	fontSize: 13,
+	lineHeight: "20px",
 	color: "var(--dsw-alias-label-secondary)",
 };
 export const cardStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
-	gap: 14,
-	padding: "18px 20px",
-	border: "1px solid var(--dsw-alias-border-l2)",
-	borderRadius: 12,
-	background: "var(--dsw-alias-bg-module-platform)",
+	gap: 16,
+	padding: "16px 20px",
+	border: "0.5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4))",
+	borderRadius: "var(--dsw-radius-xl, 20px)",
+	background: "var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-2))",
 	transition: TRANSITION,
 };
 export const rowStyle: CSSProperties = {
@@ -46,22 +46,28 @@ export const rowStyle: CSSProperties = {
 export const statusStyle: CSSProperties = {
 	display: "flex",
 	alignItems: "center",
-	gap: 9,
-	fontSize: 14,
+	gap: 8,
+	fontSize: 13,
 	fontWeight: 500,
 	color: "var(--dsw-alias-label-primary)",
 };
 export const buttonStyle: CSSProperties = {
 	boxSizing: "border-box",
-	minHeight: 34,
-	padding: "6px 14px",
-	border: "1px solid var(--dsw-alias-border-l4, rgba(127, 127, 127, 0.4))",
-	borderRadius: 18,
-	background: "var(--dsw-alias-button-elevated-fill, var(--dsw-alias-bg-layer-1))",
+	display: "inline-flex",
+	alignItems: "center",
+	justifyContent: "center",
+	gap: 6,
+	height: 36,
+	minHeight: 36,
+	padding: "0 14px",
+	border: "0.5px solid var(--dsw-alias-border-l3)",
+	borderRadius: "var(--dsw-radius-md, 12px)",
+	background: "transparent",
 	color: "var(--dsw-alias-label-primary)",
-	boxShadow: "0 1px 2px rgba(0, 0, 0, 0.18)",
+	boxShadow: "none",
 	font: "inherit",
-	fontSize: 14,
+	fontSize: 13,
+	lineHeight: "20px",
 	fontWeight: 500,
 	cursor: "pointer",
 	transition: TRANSITION,
@@ -73,32 +79,33 @@ export const primaryButtonStyle: CSSProperties = {
 	border: "none",
 	background: "var(--dsw-alias-button-primary-fill)",
 	color: "var(--dsw-alias-label-primary-foreground)",
-	boxShadow: "0 1px 3px rgba(0, 0, 0, 0.28)",
-	fontWeight: 600,
+	fontWeight: 500,
 };
 export const compactButtonStyle: CSSProperties = {
 	...buttonStyle,
+	height: 28,
 	minHeight: 28,
-	padding: "4px 10px",
-	fontSize: 13,
-	borderRadius: 8,
+	padding: "0 10px",
+	fontSize: 12,
+	lineHeight: "18px",
+	borderRadius: "var(--dsw-radius-sm, 8px)",
 };
 export const errorStyle: CSSProperties = { ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" };
 export const successStyle: CSSProperties = { ...bodyStyle, color: "var(--dsw-alias-state-success-primary, #22a06b)" };
 export const warningStyle: CSSProperties = {
 	...bodyStyle,
-	padding: "10px 12px",
-	borderRadius: 8,
-	border: "1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #e06c00) 35%, transparent)",
-	background: "color-mix(in srgb, var(--dsw-alias-state-warn-primary, #e06c00) 10%, transparent)",
+	padding: "10px 14px",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	border: "0.5px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #e06c00) 30%, transparent)",
+	background: "color-mix(in srgb, var(--dsw-alias-state-warn-primary, #e06c00) 8%, transparent)",
 	color: "var(--dsw-alias-label-primary)",
 };
 export const tipStyle: CSSProperties = {
 	...bodyStyle,
-	padding: "10px 12px",
-	borderRadius: 8,
-	border: "1px solid var(--dsw-alias-border-l2)",
-	background: "var(--dsw-alias-bg-layer-1)",
+	padding: "10px 14px",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
+	background: "var(--dsw-alias-bg-module-platform)",
 	color: "var(--dsw-alias-label-primary)",
 };
 export const noticeStyle: CSSProperties = {
@@ -107,8 +114,8 @@ export const noticeStyle: CSSProperties = {
 };
 export const codeStyle: CSSProperties = {
 	fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-	fontSize: 20,
-	letterSpacing: "0.08em",
+	fontSize: 16,
+	letterSpacing: "0.06em",
 	fontWeight: 600,
 	color: "var(--dsw-alias-label-primary)",
 };
@@ -118,53 +125,67 @@ export const snippetStyle: CSSProperties = {
 	display: "block",
 	fontSize: 12,
 	lineHeight: "18px",
-	padding: "10px 12px",
-	borderRadius: 8,
-	border: "1px solid var(--dsw-alias-border-l2)",
+	padding: "10px 14px",
+	borderRadius: "var(--dsw-radius-md, 12px)",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
 	background: "var(--dsw-alias-bg-layer-1)",
 	color: "var(--dsw-alias-label-primary)",
 	overflowWrap: "anywhere",
 	whiteSpace: "pre-wrap",
 };
-export const linkStyle: CSSProperties = { color: "var(--dsw-alias-brand-primary)", wordBreak: "break-all" };
+export const linkStyle: CSSProperties = {
+	color: "var(--dsw-alias-link, var(--dsw-alias-brand-primary))",
+	fontWeight: 500,
+	textDecoration: "none",
+	wordBreak: "break-all",
+	cursor: "pointer",
+};
 export const listStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
-	gap: 8,
+	gap: 6,
 	margin: 0,
 	padding: 0,
 	listStyle: "none",
 };
 export const checkRowStyle: CSSProperties = {
 	display: "flex",
-	alignItems: "flex-start",
+	alignItems: "center",
 	gap: 8,
-	fontSize: 14,
+	fontSize: 13,
 	color: "var(--dsw-alias-label-primary)",
+	cursor: "pointer",
 };
 export const inputStyle: CSSProperties = {
 	boxSizing: "border-box",
 	width: "100%",
-	minHeight: 34,
-	padding: "6px 12px",
-	border: "1px solid var(--dsw-alias-border-l2)",
-	borderRadius: 8,
+	height: 32,
+	minHeight: 32,
+	padding: "0 10px",
+	border: "0.5px solid var(--dsw-alias-border-l4)",
+	borderRadius: "var(--dsw-radius-md, 12px)",
 	background: "var(--dsw-alias-bg-layer-1)",
 	color: "var(--dsw-alias-label-primary)",
 	font: "inherit",
 	fontSize: 13,
+	lineHeight: "20px",
 	transition: TRANSITION,
 };
 export const nestedStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
-	gap: 8,
-	padding: "12px 14px",
-	border: "1px solid var(--dsw-alias-border-l2)",
-	borderRadius: 8,
-	background: "var(--dsw-alias-bg-layer-1)",
+	gap: 10,
+	padding: "14px 16px",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	background: "var(--dsw-alias-bg-module-platform)",
 };
-export const hintStyle: CSSProperties = { ...bodyStyle, fontSize: 13 };
+export const hintStyle: CSSProperties = {
+	...bodyStyle,
+	fontSize: 12,
+	lineHeight: "18px",
+	color: "var(--dsw-alias-label-tertiary)",
+};
 export const visuallyHiddenStyle: CSSProperties = {
 	position: "absolute",
 	width: 1,
@@ -181,25 +202,28 @@ export const segmentedNavStyle: CSSProperties = {
 	flexWrap: "wrap",
 	gap: 2,
 	padding: 3,
-	borderRadius: 10,
-	border: "1px solid var(--dsw-alias-border-l2)",
-	background: "var(--dsw-alias-bg-layer-1)",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
+	background: "var(--dsw-alias-bg-module-platform)",
 };
 export const segmentedTabStyle: CSSProperties = {
 	...buttonStyle,
 	border: "none",
-	borderRadius: 8,
+	borderRadius: "var(--dsw-radius-md, 12px)",
 	boxShadow: "none",
 	background: "transparent",
+	height: 32,
 	minHeight: 32,
-	padding: "5px 12px",
+	padding: "0 12px",
 	fontSize: 13,
+	color: "var(--dsw-alias-label-secondary)",
 };
 export const segmentedTabActiveStyle: CSSProperties = {
 	...segmentedTabStyle,
-	background: "var(--dsw-alias-bg-module-platform)",
+	background: "var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-1))",
+	border: "0.5px solid var(--dsw-alias-border-l3)",
 	color: "var(--dsw-alias-label-primary)",
-	boxShadow: "0 1px 2px rgba(0, 0, 0, 0.12)",
+	boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
 	fontWeight: 600,
 };
 export const panelStyle: CSSProperties = {
@@ -210,7 +234,7 @@ export const panelStyle: CSSProperties = {
 };
 export const accountGridStyle: CSSProperties = {
 	display: "grid",
-	gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
+	gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))",
 	gap: 14,
 };
 export const copyRowStyle: CSSProperties = {
@@ -232,7 +256,7 @@ export const stepRowStyle: CSSProperties = {
 	display: "flex",
 	alignItems: "flex-start",
 	gap: 10,
-	fontSize: 14,
+	fontSize: 13,
 	color: "var(--dsw-alias-label-secondary)",
 };
 export const stepActiveStyle: CSSProperties = {
@@ -244,20 +268,20 @@ export const stepNumberStyle: CSSProperties = {
 	display: "inline-flex",
 	alignItems: "center",
 	justifyContent: "center",
-	width: 22,
-	height: 22,
+	width: 20,
+	height: 20,
 	borderRadius: "50%",
 	flex: "0 0 auto",
-	fontSize: 12,
+	fontSize: 11,
 	fontWeight: 600,
-	background: "var(--dsw-alias-bg-layer-1)",
-	border: "1px solid var(--dsw-alias-border-l2)",
+	background: "var(--dsw-alias-bg-module-platform)",
+	border: "0.5px solid var(--dsw-alias-border-l3)",
 	color: "var(--dsw-alias-label-secondary)",
 };
 export const stepNumberActiveStyle: CSSProperties = {
 	...stepNumberStyle,
 	background: "var(--dsw-alias-button-primary-fill)",
-	borderColor: "var(--dsw-alias-button-primary-fill)",
+	border: "none",
 	color: "var(--dsw-alias-label-primary-foreground)",
 };
 
@@ -284,18 +308,21 @@ export function statusToneColor(tone: StatusTone): string {
 
 export function badgeStyle(tone: StatusTone): CSSProperties {
 	const color = statusToneColor(tone);
+	const isNeutral = tone === "neutral";
 	return {
 		display: "inline-flex",
 		alignItems: "center",
-		gap: 6,
-		padding: "3px 10px",
+		gap: 5,
+		padding: "2px 8px",
 		borderRadius: 999,
-		fontSize: 12,
-		fontWeight: 600,
-		lineHeight: "18px",
+		fontSize: 11,
+		fontWeight: 500,
+		lineHeight: "17px",
 		color,
-		background: `color-mix(in srgb, ${color} 14%, transparent)`,
-		border: `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
+		background: isNeutral ? "var(--dsw-alias-bg-module-platform)" : `color-mix(in srgb, ${color} 10%, transparent)`,
+		border: isNeutral
+			? "0.5px solid var(--dsw-alias-border-l3)"
+			: `0.5px solid color-mix(in srgb, ${color} 22%, transparent)`,
 		whiteSpace: "nowrap",
 	};
 }
@@ -313,7 +340,13 @@ export function dotStyle(
 				: status === "signing-in" || status === "loading"
 					? "var(--dsw-alias-brand-primary, #1677ff)"
 					: "var(--dsw-alias-label-tertiary, #81858c)";
-	return { width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto", background: color };
+	return {
+		width: 7,
+		height: 7,
+		borderRadius: "50%",
+		flex: "0 0 auto",
+		background: color,
+	};
 }
 
 export function providerStatusTone(status: ProviderStatus["status"], installed = true): StatusTone {

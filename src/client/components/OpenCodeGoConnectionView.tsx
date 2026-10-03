@@ -1,5 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { GO_APIS, type GoApi, isGoApi, knownGoApi } from "../../opencode-go-protocol.ts";
+import {
+	bodyStyle,
+	cardStyle,
+	checkRowStyle,
+	compactButtonStyle,
+	errorStyle,
+	hintStyle,
+	inputStyle,
+	monoStyle,
+	nestedStyle,
+	primaryButtonStyle,
+	titleStyle,
+	warningStyle,
+} from "../styles.ts";
+import { Badge } from "./Badge.tsx";
 
 export interface GoModel {
 	readonly id: string;
@@ -101,25 +116,18 @@ export interface GoViewProps {
 	readonly onStartConversation?: (() => void) | undefined;
 }
 
-const field = { display: "flex", flexDirection: "column", gap: 5 } as const;
+const field = { display: "flex", flexDirection: "column", gap: 6 } as const;
 const actions = { display: "flex", flexWrap: "wrap", gap: 8 } as const;
-const control = {
-	padding: "7px 10px",
-	font: "inherit",
-	borderRadius: 6,
-	border: "1px solid var(--dsw-alias-border-subtle, #777)",
-	color: "inherit",
-	background: "var(--dsw-alias-bg-layer-1, transparent)",
-} as const;
 const modelListStyle = {
 	display: "flex",
 	flexDirection: "column",
 	gap: 4,
 	maxHeight: 220,
 	overflow: "auto",
-	padding: 8,
-	border: "1px solid var(--dsw-alias-border-subtle, #777)",
-	borderRadius: 6,
+	padding: "8px 10px",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
+	borderRadius: "var(--dsw-radius-md, 12px)",
+	background: "var(--dsw-alias-bg-layer-1)",
 	minWidth: 0,
 } as const;
 
@@ -217,90 +225,80 @@ export function OpenCodeGoConnectionView({
 			className="dus-oauth-card"
 			data-opencode-go-status={currentCall?.lastCall ?? "loading"}
 			data-unsaved={dirty || apiKey !== "" ? "true" : undefined}
-			style={{
-				padding: 16,
-				display: "flex",
-				flexDirection: "column",
-				gap: 12,
-				border: "1px solid var(--dsw-alias-border-subtle, #777)",
-				borderRadius: 10,
-				minWidth: 0,
-			}}
+			style={cardStyle}
 		>
 			<div style={{ ...actions, justifyContent: "space-between", alignItems: "center" }}>
-				<strong>{t("title")}</strong>
-				{status?.configuration.ready ? <span>{t("configured")}</span> : null}
+				<strong style={{ ...titleStyle, fontSize: 16 }}>{t("title")}</strong>
+				{status?.configuration.ready ? <Badge label={t("configured")} tone="success" /> : null}
 			</div>
-			<p style={{ margin: 0 }}>{t(callKey)}</p>
+			<p style={{ ...bodyStyle, margin: 0 }}>{t(callKey)}</p>
 			{status?.providerId ? (
-				<p style={{ margin: 0, opacity: 0.85, fontSize: "0.9em" }}>
-					{t("providerIdHint", { providerId: status.providerId })}
-				</p>
+				<p style={{ ...hintStyle, margin: 0 }}>{t("providerIdHint", { providerId: status.providerId })}</p>
 			) : null}
 			{status?.legacy?.migratable && onMigrateLegacy ? (
 				<div
 					role="status"
 					style={{
+						...warningStyle,
 						display: "flex",
 						flexDirection: "column",
 						gap: 8,
-						padding: 10,
-						borderRadius: 8,
-						border: "1px solid var(--dsw-alias-border-subtle, #777)",
 					}}
 				>
-					<p style={{ margin: 0 }}>
+					<p style={{ ...bodyStyle, margin: 0 }}>
 						{t("legacyMigration", {
 							legacyId: status.legacy.providerId,
 							providerId: status.legacy.targetProviderId,
 						})}
 					</p>
-					<button
-						type="button"
-						style={control}
-						disabled={pending || status.configuration.revision === null || !status.configuration.writable}
-						onClick={() => {
-							if (status.configuration.revision === null) return;
-							run(async () => {
-								await onMigrateLegacy({
-									expectedRevision: status.configuration.revision!,
-									confirmConflicts: true,
+					<div>
+						<button
+							type="button"
+							style={compactButtonStyle}
+							disabled={pending || status.configuration.revision === null || !status.configuration.writable}
+							onClick={() => {
+								if (status.configuration.revision === null) return;
+								run(async () => {
+									await onMigrateLegacy({
+										expectedRevision: status.configuration.revision!,
+										confirmConflicts: true,
+									});
+									setEditing(false);
+									setDirty(false);
+									setNotice("applied");
 								});
-								setEditing(false);
-								setDirty(false);
-								setNotice("applied");
-							});
-						}}
-					>
-						{t("migrate")}
-					</button>
+							}}
+						>
+							{t("migrate")}
+						</button>
+					</div>
 				</div>
 			) : null}
 			{status?.configuration.ready ? (
-				<p style={{ margin: 0, overflowWrap: "anywhere" }}>
+				<p style={{ ...bodyStyle, margin: 0, overflowWrap: "anywhere" }}>
 					{status.configuration.models.map((model) => model.name ?? model.id).join(" · ")}
 				</p>
 			) : (
-				<p style={{ margin: 0 }}>{t("description")}</p>
+				<p style={{ ...bodyStyle, margin: 0 }}>{t("description")}</p>
 			)}
 			<div style={actions}>
 				{status?.configuration.ready && onStartConversation ? (
-					<button type="button" style={control} disabled={pending || dirty} onClick={onStartConversation}>
+					<button type="button" style={primaryButtonStyle} disabled={pending || dirty} onClick={onStartConversation}>
 						{t("startConversation")}
 					</button>
 				) : null}
 				{!showingForm && status ? (
-					<button type="button" style={control} onClick={() => setEditing(true)}>
+					<button type="button" style={compactButtonStyle} onClick={() => setEditing(true)}>
 						{t("edit")}
 					</button>
 				) : null}
 			</div>
 			{showingForm ? (
-				<div style={{ ...field, gap: 12 }}>
+				<div style={{ ...nestedStyle, gap: 12 }}>
 					<label style={field}>
-						{t("credential")}
+						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("credential")}</span>
 						<select
-							style={control}
+							style={inputStyle}
 							value={credentialRef}
 							disabled={pending}
 							onChange={(event) => {
@@ -318,9 +316,9 @@ export function OpenCodeGoConnectionView({
 						</select>
 					</label>
 					<label style={field}>
-						{t("apiKey")}
+						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("apiKey")}</span>
 						<input
-							style={control}
+							style={inputStyle}
 							type="password"
 							autoComplete="off"
 							value={apiKey}
@@ -332,10 +330,12 @@ export function OpenCodeGoConnectionView({
 							}}
 						/>
 					</label>
-					{candidate?.writable === false || status?.configuration.writable === false ? <p>{t("readOnly")}</p> : null}
+					{candidate?.writable === false || status?.configuration.writable === false ? (
+						<p style={{ ...hintStyle, margin: 0 }}>{t("readOnly")}</p>
+					) : null}
 					<div style={actions}>
 						<button
-							style={control}
+							style={primaryButtonStyle}
 							type="button"
 							disabled={pending || !credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)}
 							onClick={() =>
@@ -350,7 +350,7 @@ export function OpenCodeGoConnectionView({
 							{apiKey ? t("saveKey") : t("reuse")}
 						</button>
 						<button
-							style={control}
+							style={compactButtonStyle}
 							type="button"
 							disabled={pending || !candidate?.configured}
 							onClick={() =>
@@ -375,10 +375,10 @@ export function OpenCodeGoConnectionView({
 						</button>
 					</div>
 					<label style={field}>
-						{t("protocol")}
+						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("protocol")}</span>
 						<select
 							aria-label={t("protocol")}
-							style={control}
+							style={inputStyle}
 							value={api}
 							disabled={pending || !status?.configuration.writable}
 							onChange={(event) => {
@@ -401,14 +401,14 @@ export function OpenCodeGoConnectionView({
 							))}
 						</select>
 					</label>
-					<p>{t("protocolHint")}</p>
+					<p style={{ ...hintStyle, margin: 0 }}>{t("protocolHint")}</p>
 					<div style={field}>
-						<span>{t("model")}</span>
-						<p style={{ margin: 0 }}>{t("modelsHint")}</p>
+						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("model")}</span>
+						<p style={{ ...hintStyle, margin: 0 }}>{t("modelsHint")}</p>
 						<div style={actions}>
 							<button
 								type="button"
-								style={control}
+								style={compactButtonStyle}
 								disabled={pending || status?.configuration.writable !== true || visibleChoices.length === 0}
 								onClick={() => {
 									change();
@@ -420,7 +420,7 @@ export function OpenCodeGoConnectionView({
 							</button>
 							<button
 								type="button"
-								style={control}
+								style={compactButtonStyle}
 								disabled={pending || status?.configuration.writable !== true || enabledIds.length === 0}
 								onClick={() => {
 									change();
@@ -433,10 +433,10 @@ export function OpenCodeGoConnectionView({
 						</div>
 						<fieldset
 							aria-label={t("model")}
-							style={{ ...modelListStyle, border: "none", margin: 0, padding: 0, minWidth: 0 }}
+							style={{ ...modelListStyle, border: "0.5px solid var(--dsw-alias-border-l2)", margin: 0, minWidth: 0 }}
 						>
 							{visibleChoices.length === 0 ? (
-								<p style={{ margin: 0 }}>{t("modelsEmpty")}</p>
+								<p style={{ ...hintStyle, margin: 0 }}>{t("modelsEmpty")}</p>
 							) : (
 								visibleChoices.map((model) => {
 									const label = model.name ?? model.id;
@@ -451,14 +451,22 @@ export function OpenCodeGoConnectionView({
 													.map(([level]) => level)
 											: [];
 									return (
-										<label key={model.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", minWidth: 0 }}>
+										<label
+											key={model.id}
+											style={{
+												...checkRowStyle,
+												padding: "3px 4px",
+												borderRadius: "var(--dsw-radius-sm, 8px)",
+												minWidth: 0,
+											}}
+										>
 											<input
 												type="checkbox"
 												checked={enabledIds.includes(model.id)}
 												disabled={pending || status?.configuration.writable !== true}
 												onChange={(event) => toggleModel(model.id, event.target.checked)}
 											/>
-											<span style={{ overflowWrap: "anywhere" }}>
+											<span style={{ ...monoStyle, fontSize: 13, overflowWrap: "anywhere" }}>
 												{label}
 												{thinking.length > 0 ? ` · thinking: ${thinking.join("/")}` : ""}
 											</span>
@@ -469,25 +477,27 @@ export function OpenCodeGoConnectionView({
 						</fieldset>
 					</div>
 					{status && revision !== status.configuration.revision ? (
-						<p role="status">{t("configurationChanged")}</p>
+						<p role="status" style={{ ...hintStyle, margin: 0 }}>
+							{t("configurationChanged")}
+						</p>
 					) : null}
 					{conflicts.length ? (
-						<div>
-							<p>{t("conflictPreview", { conflicts: conflicts.join(", ") })}</p>
-							<label>
+						<div style={{ ...warningStyle, margin: 0 }}>
+							<p style={{ margin: 0 }}>{t("conflictPreview", { conflicts: conflicts.join(", ") })}</p>
+							<label style={{ ...checkRowStyle, marginTop: 6 }}>
 								<input
 									type="checkbox"
 									checked={confirmed}
 									disabled={pending}
 									onChange={(event) => setConfirmed(event.target.checked)}
 								/>{" "}
-								{t("confirmConflict")}
+								<span>{t("confirmConflict")}</span>
 							</label>
 						</div>
 					) : null}
 					<div style={actions}>
 						<button
-							style={control}
+							style={primaryButtonStyle}
 							type="button"
 							disabled={
 								pending ||
@@ -523,7 +533,7 @@ export function OpenCodeGoConnectionView({
 							{t("apply")}
 						</button>
 						<button
-							style={control}
+							style={compactButtonStyle}
 							type="button"
 							disabled={pending}
 							onClick={() =>
@@ -537,7 +547,7 @@ export function OpenCodeGoConnectionView({
 							{t("reload")}
 						</button>
 						<button
-							style={control}
+							style={compactButtonStyle}
 							type="button"
 							disabled={pending}
 							onClick={() =>
@@ -556,25 +566,33 @@ export function OpenCodeGoConnectionView({
 				</div>
 			) : null}
 			{notice ? (
-				<p role="status" style={{ margin: 0 }}>
+				<p role="status" style={{ ...bodyStyle, margin: 0, color: "var(--dsw-alias-state-success-primary)" }}>
 					{t(notice)}
 				</p>
 			) : null}
 			{error || loadError ? (
-				<div role="alert">
-					<p>{error ?? loadError}</p>
+				<div
+					role="alert"
+					style={{
+						...nestedStyle,
+						borderColor: "color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent)",
+					}}
+				>
+					<p style={{ ...errorStyle, margin: 0 }}>{error ?? loadError}</p>
 					{!showingForm ? (
-						<button
-							style={control}
-							type="button"
-							onClick={() =>
-								run(async () => {
-									await onReload();
-								})
-							}
-						>
-							{t("reload")}
-						</button>
+						<div>
+							<button
+								style={compactButtonStyle}
+								type="button"
+								onClick={() =>
+									run(async () => {
+										await onReload();
+									})
+								}
+							>
+								{t("reload")}
+							</button>
+						</div>
 					) : null}
 				</div>
 			) : null}

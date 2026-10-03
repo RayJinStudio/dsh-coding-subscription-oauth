@@ -1,7 +1,7 @@
 /** Dismissible notice banner with optional auto-hide. */
 
 import { useEffect } from "react";
-import { bodyStyle, buttonStyle, noticeStyle } from "../styles.ts";
+import { bodyStyle, compactButtonStyle, noticeStyle } from "../styles.ts";
 
 export interface NoticeBannerProps {
 	message: string;
@@ -20,7 +20,7 @@ export function NoticeBanner({ message, dismissLabel, onDismiss, autoHideMs, ton
 		};
 	}, [autoHideMs, onDismiss]);
 
-	const borderColor =
+	const toneColor =
 		tone === "success" ? "var(--dsw-alias-state-success-primary, #22a06b)" : "var(--dsw-alias-brand-primary, #1677ff)";
 
 	return (
@@ -28,16 +28,31 @@ export function NoticeBanner({ message, dismissLabel, onDismiss, autoHideMs, ton
 			style={{
 				...noticeStyle,
 				display: "flex",
-				alignItems: "flex-start",
+				alignItems: "center",
 				justifyContent: "space-between",
 				gap: 12,
-				borderLeft: `3px solid ${borderColor}`,
+				borderRadius: "var(--dsw-radius-lg, 16px)",
+				border: `0.5px solid color-mix(in srgb, ${toneColor} 30%, transparent)`,
+				background: `color-mix(in srgb, ${toneColor} 8%, var(--dsw-alias-bg-module-platform))`,
+				padding: "10px 14px",
 			}}
 			role="status"
 		>
-			<p style={{ ...bodyStyle, margin: 0, color: "var(--dsw-alias-label-primary)" }}>{message}</p>
+			<div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+				<span
+					aria-hidden="true"
+					style={{
+						width: 6,
+						height: 6,
+						borderRadius: "50%",
+						background: toneColor,
+						flexShrink: 0,
+					}}
+				/>
+				<p style={{ ...bodyStyle, margin: 0, color: "var(--dsw-alias-label-primary)" }}>{message}</p>
+			</div>
 			{onDismiss === undefined || dismissLabel === undefined ? null : (
-				<button type="button" style={buttonStyle} onClick={onDismiss}>
+				<button type="button" style={compactButtonStyle} onClick={onDismiss}>
 					{dismissLabel}
 				</button>
 			)}

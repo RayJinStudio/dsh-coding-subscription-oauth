@@ -32,8 +32,8 @@ export function ProgressBar({ value, label, meta }: ProgressBarProps) {
 				aria-valuemin={0}
 				aria-valuemax={100}
 				style={{
-					height: 8,
-					borderRadius: 4,
+					height: 6,
+					borderRadius: 999,
 					background: "var(--dsw-alias-border-l2)",
 					overflow: "hidden",
 				}}
@@ -42,7 +42,7 @@ export function ProgressBar({ value, label, meta }: ProgressBarProps) {
 					style={{
 						width: `${String(clamped)}%`,
 						height: "100%",
-						borderRadius: 4,
+						borderRadius: 999,
 						background: barColor(clamped),
 						transition: "width 0.3s ease, background 0.3s ease",
 					}}

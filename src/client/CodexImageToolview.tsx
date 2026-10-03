@@ -23,12 +23,12 @@ export interface CodexImageToolviewProps {
 const cardStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
-	gap: 8,
+	gap: 10,
 	margin: "6px 0",
-	padding: "10px 12px",
-	border: "1px solid var(--dsw-alias-border-l2)",
-	borderRadius: 10,
-	background: "var(--dsw-alias-bg-layer-1)",
+	padding: "12px 14px",
+	border: "0.5px solid var(--dsw-alias-border-l3)",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	background: "var(--dsw-alias-bg-module-platform)",
 };
 
 const rowButtonStyle: CSSProperties = {
@@ -38,9 +38,11 @@ const rowButtonStyle: CSSProperties = {
 	justifyContent: "flex-start",
 	gap: 8,
 	width: "100%",
+	height: 32,
 	minHeight: 32,
 	padding: "4px 8px",
 	border: "none",
+	borderRadius: "var(--dsw-radius-sm, 8px)",
 	background: "transparent",
 	boxShadow: "none",
 	textAlign: "left",
@@ -59,8 +61,8 @@ const imageStyle: CSSProperties = {
 	maxHeight: 240,
 	width: "auto",
 	height: "auto",
-	borderRadius: 8,
-	border: "1px solid var(--dsw-alias-border-l2)",
+	borderRadius: "var(--dsw-radius-md, 12px)",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
 	background: "var(--dsw-alias-bg-layer-2)",
 };
 

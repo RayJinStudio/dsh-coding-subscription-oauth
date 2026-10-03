@@ -12,6 +12,7 @@ import {
 	monoStyle,
 	rowStyle,
 	skeletonStyle,
+	snippetStyle,
 	statusStyle,
 	titleStyle,
 } from "../styles.ts";
@@ -258,7 +259,7 @@ export function AccountsTab({
 						/>
 					</div>
 					<p style={bodyStyle}>{t("antigravityCliHint")}</p>
-					<code style={{ ...monoStyle, fontSize: 12, overflowWrap: "anywhere" }}>{t("antigravityCliCommand")}</code>
+					<code style={snippetStyle}>{t("antigravityCliCommand")}</code>
 				</div>
 			</div>
 		</>

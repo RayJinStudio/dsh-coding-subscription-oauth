@@ -15,6 +15,63 @@ const CSS = `
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+[data-dsh-coding-oauth] [role="switch"],
+[data-dsh-coding-oauth] [role="switch"] > span,
+[data-dsh-coding-oauth] [role="status"],
+[data-dsh-coding-oauth] [role="progressbar"],
+[data-dsh-coding-oauth] [role="progressbar"] > div {
+  corner-shape: round;
+}
+[data-dsh-coding-oauth] button:focus-visible,
+[data-dsh-coding-oauth] input:focus-visible,
+[data-dsh-coding-oauth] select:focus-visible,
+[data-dsh-coding-oauth] [role="switch"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+[data-dsh-coding-oauth] input::placeholder {
+  color: var(--dsw-alias-label-dimmed, #81858c);
+}
+[data-dsh-coding-oauth] input:focus,
+[data-dsh-coding-oauth] select:focus {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+}
+[data-dsh-coding-oauth] input[type="checkbox"] {
+  accent-color: var(--dsw-alias-brand-primary, #1677ff);
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+}
+[data-dsh-coding-oauth] a {
+  color: var(--dsw-alias-link, var(--dsw-alias-brand-primary));
+  text-decoration: none;
+}
+[data-dsh-coding-oauth] a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+[data-dsh-coding-oauth] button:hover:not(:disabled) {
+  opacity: 0.92;
+}
+[data-dsh-coding-oauth] button:active:not(:disabled) {
+  opacity: 0.82;
+}
+[data-dsh-coding-oauth] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-scrollbar-bg-l1, rgba(127, 127, 127, 0.3)) transparent;
+}
+[data-dsh-coding-oauth] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+[data-dsh-coding-oauth] ::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-scrollbar-bg-l1, rgba(127, 127, 127, 0.3));
+  border-radius: 999px;
+}
+[data-dsh-coding-oauth] ::-webkit-scrollbar-thumb:hover {
+  background: var(--dsw-alias-scrollbar-hover-l1, rgba(127, 127, 127, 0.5));
+}
 @media (prefers-reduced-motion: reduce) {
   [data-dsh-coding-oauth] *, [data-dsh-coding-oauth] *::before, [data-dsh-coding-oauth] *::after {
     animation-duration: 0.01ms !important;

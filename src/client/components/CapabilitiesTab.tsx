@@ -4,8 +4,8 @@ import { CAPABILITY_LIMITS, CAPABILITY_TOGGLES } from "../constants.ts";
 import { imagineSourceLabel } from "../parsers.ts";
 import {
 	bodyStyle,
-	buttonStyle,
 	cardStyle,
+	compactButtonStyle,
 	dotStyle,
 	errorStyle,
 	hintStyle,
@@ -69,9 +69,11 @@ export function CapabilitiesTab({
 			{scope === "codex" || imagineError === undefined ? null : (
 				<div style={nestedStyle} role="alert">
 					<p style={errorStyle}>{imagineError}</p>
-					<button type="button" style={buttonStyle} onClick={onRetry}>
-						{t("retry")}
-					</button>
+					<div>
+						<button type="button" style={compactButtonStyle} onClick={onRetry}>
+							{t("retry")}
+						</button>
+					</div>
 				</div>
 			)}
 			{scope === "codex" ? null : imagine === undefined && imagineError === undefined ? (
@@ -93,9 +95,11 @@ export function CapabilitiesTab({
 			{capabilitiesError === undefined ? null : (
 				<div style={nestedStyle} role="alert">
 					<p style={errorStyle}>{capabilitiesError}</p>
-					<button type="button" style={buttonStyle} onClick={onRetry}>
-						{t("retry")}
-					</button>
+					<div>
+						<button type="button" style={compactButtonStyle} onClick={onRetry}>
+							{t("retry")}
+						</button>
+					</div>
 				</div>
 			)}
 			{capabilities === undefined && capabilitiesError === undefined ? (
@@ -145,7 +149,7 @@ export function CapabilitiesTab({
 											</span>
 										</label>
 										{repairAction === undefined ? null : (
-											<button type="button" style={buttonStyle} onClick={repairAction.action}>
+											<button type="button" style={compactButtonStyle} onClick={repairAction.action}>
 												{repairAction.label}
 											</button>
 										)}
@@ -183,7 +187,11 @@ export function CapabilitiesTab({
 											</span>
 										</label>
 										{dependencyReason === undefined ? null : (
-											<button type="button" style={buttonStyle} onClick={() => onFocusDependency("imagineCredential")}>
+											<button
+												type="button"
+												style={compactButtonStyle}
+												onClick={() => onFocusDependency("imagineCredential")}
+											>
 												{t("focusImagineCredential")}
 											</button>
 										)}

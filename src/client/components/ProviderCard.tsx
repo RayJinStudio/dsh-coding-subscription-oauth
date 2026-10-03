@@ -532,7 +532,7 @@ export function ProviderCard({
 												alignItems: "center",
 												justifyContent: "space-between",
 												padding: "6px 0",
-												borderBottom: "1px solid var(--dsw-alias-border-subtle, #e5e5e5)",
+												borderBottom: "0.5px solid var(--dsw-alias-border-l2)",
 											}}
 										>
 											<span style={bodyStyle}>
@@ -785,13 +785,24 @@ export function ProviderCard({
 			) : null}
 			{capabilitiesPanel === undefined ? null : (
 				<details
+					style={{ borderTop: "0.5px solid var(--dsw-alias-border-l2)", paddingTop: 8 }}
 					onToggle={(event) => {
 						setAdvancedOpen(event.currentTarget.open);
 						if (event.currentTarget.open) onLoadCapabilities?.();
 					}}
 				>
-					<summary>{t("capabilitiesTitle")}</summary>
-					{advancedOpen ? capabilitiesPanel : null}
+					<summary
+						style={{
+							...bodyStyle,
+							fontWeight: 500,
+							cursor: "pointer",
+							color: "var(--dsw-alias-label-secondary)",
+							padding: "4px 0",
+						}}
+					>
+						{t("capabilitiesTitle")}
+					</summary>
+					{advancedOpen ? <div style={{ paddingTop: 8 }}>{capabilitiesPanel}</div> : null}
 				</details>
 			)}
 		</div>

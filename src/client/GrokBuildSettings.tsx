@@ -45,7 +45,7 @@ import {
 	parseSources,
 	parseUsage,
 } from "./parsers.ts";
-import { bodyStyle, buttonStyle, errorStyle, pageStyle, panelStyle, titleStyle } from "./styles.ts";
+import { bodyStyle, compactButtonStyle, errorStyle, pageStyle, panelStyle, titleStyle } from "./styles.ts";
 import type {
 	CapabilitySettingKey,
 	CapabilitySettingsView,
@@ -685,7 +685,7 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 				<div role="alert" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
 					<p style={errorStyle}>{requestError ?? statusError}</p>
 					{status === undefined ? (
-						<button type="button" style={buttonStyle} onClick={() => void refresh()}>
+						<button type="button" style={compactButtonStyle} onClick={() => void refresh()}>
 							{t("retry")}
 						</button>
 					) : null}
