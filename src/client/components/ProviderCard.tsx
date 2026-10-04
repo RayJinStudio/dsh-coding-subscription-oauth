@@ -3,7 +3,7 @@ import { AccountReauthorization } from "./AccountReauthorization.tsx";
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { SOURCE_REASON_KEY } from "../constants.ts";
-import { methodLabel, orderedLoginMethods, shouldShowPerCardSourceReason } from "../display.ts";
+import { methodLabel, orderedLoginMethods, shouldShowPerCardSourceReason, usageWindowLabelKey } from "../display.ts";
 import { formatEpoch, looksSecret, modelFields, usageHasVisibleFields } from "../parsers.ts";
 import {
 	bodyStyle,
@@ -263,11 +263,13 @@ export function ProviderCard({
 
 	const isUsageActive =
 		(definition.slug === "codex" && showUsage) || (definition.slug === "kimi" && showUsage && usage !== undefined);
-	const usagePercent = isUsageActive
-		? usage?.individualRemainingPercent === undefined
-			? usage?.rateLimits[0]?.windows[0]?.usedPercent
-			: 100 - usage.individualRemainingPercent
-		: undefined;
+	// The aggregate bar is only a distinct metric when the vendor reports a spend
+	// / individual limit. Otherwise it duplicated `rateLimits[0]`, which is how the
+	// Kimi card ended up drawing its 5-hour window twice.
+	const individualPercent =
+		usage?.individualRemainingPercent === undefined ? undefined : 100 - usage.individualRemainingPercent;
+	const usagePercent = isUsageActive ? (individualPercent ?? usage?.rateLimits[0]?.windows[0]?.usedPercent) : undefined;
+	const individualResetsAt = formatEpoch(usage?.individualResetsAt);
 	const fetchedAt = formatEpoch(usage?.fetchedAt);
 
 	return (
@@ -755,34 +757,49 @@ export function ProviderCard({
 							) : (
 								<>
 									{fetchedAt === undefined ? null : <p style={hintStyle}>{t("usageFetchedAt", { time: fetchedAt })}</p>}
-									{usagePercent !== undefined ? (
+									{individualPercent === undefined || !isUsageActive ? null : (
 										<ProgressBar
-											value={usagePercent}
-											label={t("usageRateLimit")}
-											meta={t("usageUsed", { value: `${String(usagePercent)}%` })}
+											value={individualPercent}
+											label={t("usageIndividualLimit")}
+											meta={
+												individualResetsAt === undefined
+													? t("usageUsed", { value: `${String(individualPercent)}%` })
+													: `${t("usageUsed", { value: `${String(individualPercent)}%` })} · ${t("usageResets", { time: individualResetsAt })}`
+											}
 										/>
-									) : null}
+									)}
 									{usage.rateLimits.map((limit) => {
-										const window = limit.windows[0];
-										const used = window?.usedPercent;
-										const resetsAt = formatEpoch(window?.resetsAt);
-										return (
-											<div key={limit.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-												{used === undefined ? (
-													<p style={hintStyle}>{limit.name ?? t("usageRateLimit")}</p>
-												) : (
-													<ProgressBar
-														value={used}
-														label={limit.name ?? t("usageRateLimit")}
-														meta={
-															resetsAt === undefined
-																? t("usageUsed", { value: `${String(used)}%` })
-																: `${t("usageUsed", { value: `${String(used)}%` })} · ${t("usageResets", { time: resetsAt })}`
-														}
-													/>
-												)}
-											</div>
-										);
+										const named = limit.name;
+										// Codex packs `primary_window` + `secondary_window` into one
+										// limit, so read every window instead of dropping the weekly one.
+										const rows = limit.windows.length === 0 ? [undefined] : limit.windows;
+										return rows.map((window, windowIndex) => {
+											const used = window?.usedPercent;
+											const resetsAt = formatEpoch(window?.resetsAt);
+											const windowLabel = t(usageWindowLabelKey(window?.windowSeconds));
+											const label =
+												named === undefined ? windowLabel : rows.length === 1 ? named : `${named} · ${windowLabel}`;
+											return (
+												<div
+													key={`${limit.id}-${String(windowIndex)}`}
+													style={{ display: "flex", flexDirection: "column", gap: 4 }}
+												>
+													{used === undefined ? (
+														<p style={hintStyle}>{label}</p>
+													) : (
+														<ProgressBar
+															value={used}
+															label={label}
+															meta={
+																resetsAt === undefined
+																	? t("usageUsed", { value: `${String(used)}%` })
+																	: `${t("usageUsed", { value: `${String(used)}%` })} · ${t("usageResets", { time: resetsAt })}`
+															}
+														/>
+													)}
+												</div>
+											);
+										});
 									})}
 								</>
 							)}

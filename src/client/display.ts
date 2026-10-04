@@ -1,5 +1,6 @@
 /** Pure display helpers for remote UX and CLI pull noise control. */
 
+import type { GrokBuildSettingsKey } from "./locales.ts";
 import type { GrokBuildSettingsInjected, LoginMethod, ProviderCardDefinition, SourceStatus } from "./types.ts";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
@@ -45,6 +46,17 @@ export function allOfficialCliMissing(sources: readonly SourceStatus[] | undefin
 
 export function anyOfficialCliAvailable(sources: readonly SourceStatus[] | undefined): boolean {
 	return sources?.some((source) => source.available) === true;
+}
+
+/**
+ * Label for one quota window when the vendor omits `name` (Kimi never sends one,
+ * Codex only sometimes). Derived from the window length so a 5-hour limit and a
+ * weekly limit are no longer both rendered as a generic “rate limit”.
+ */
+export function usageWindowLabelKey(windowSeconds: number | undefined): GrokBuildSettingsKey {
+	if (windowSeconds !== undefined && windowSeconds > 0 && windowSeconds <= 18_000) return "usageLimitSession";
+	if (windowSeconds !== undefined && windowSeconds >= 604_800) return "usageLimitWeekly";
+	return "usageRateLimit";
 }
 
 export function methodLabel(
