@@ -66,6 +66,7 @@ import {
 	XAI_PI_PROVIDER,
 } from "./ids.ts";
 import { registerImagineRoutes } from "./imagine-routes.ts";
+import { createKimiUsageReader, kimiAuthFromSession } from "./kimi-usage.ts";
 import { MediaStore } from "./media-store.ts";
 import {
 	type OAuthImportDestinationStore,
@@ -524,17 +525,23 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	const subscriptions = OAUTH_PROVIDER_DEFINITIONS.map(
 		(definition) =>
 			new OAuthProviderSession(definition, () => {
-				if (definition.nativeProviderId === CODEX_PI_PROVIDER) invalidateOptionalAuthState();
+				if (definition.nativeProviderId === CODEX_PI_PROVIDER || definition.nativeProviderId === KIMI_PI_PROVIDER) {
+					invalidateOptionalAuthState();
+				}
 				notifyCatalogChange();
 			}),
 	);
 	const codex = requireSubscription(subscriptions, CODEX_PI_PROVIDER);
+	const kimi = requireSubscription(subscriptions, KIMI_PI_PROVIDER);
 	const opencodeGo = new OpenCodeGoHeaderState();
 	const codexAuth = codexAuthFromSession(codex);
+	const kimiAuth = kimiAuthFromSession(kimi);
 	const usage = createCodexUsageReader({ auth: codexAuth });
+	const kimiUsage = createKimiUsageReader({ auth: kimiAuth });
 	const codexModels = createCodexModelCapabilities({ auth: codexAuth });
 	invalidateOptionalAuthState = () => {
 		usage.clear();
+		kimiUsage.clear();
 		codexModels.clear();
 		runtime.refresh();
 	};
@@ -676,11 +683,13 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 				diagnostics: ownerRequestPolicy.diagnostics(),
 			}),
 		() => opencodeGo.snapshot(),
+		() => usage.read(),
+		() => kimiUsage.read(),
 	);
 	registerOAuthImportRoutes(ctx, oauthImportDestinations(grok, subscriptions), {
 		ownerRequestPolicy,
 		onImported: (event) => {
-			if (event.kind === "codex") invalidateOptionalAuthState();
+			if (event.kind === "codex" || event.kind === "kimi") invalidateOptionalAuthState();
 			notifyCatalogChange();
 		},
 	});

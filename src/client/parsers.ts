@@ -309,6 +309,55 @@ export function parseUsage(value: unknown): UsageView | undefined {
 	};
 }
 
+export function parseKimiUsageView(value: unknown): UsageView | undefined {
+	if (!isRecord(value)) return undefined;
+	const payload = isRecord(value["usage"]) ? value["usage"] : value;
+	const rateLimits: UsageLimitView[] = [];
+	const rawLimits = Array.isArray(payload["limits"]) ? payload["limits"] : [];
+	const rawSummary = isRecord(payload["summary"]) ? payload["summary"] : undefined;
+	const allRows = [...rawLimits, ...(rawSummary ? [rawSummary] : [])];
+	for (let i = 0; i < allRows.length; i++) {
+		const row = allRows[i];
+		if (!isRecord(row)) continue;
+		const name = typeof row["name"] === "string" ? row["name"] : undefined;
+		const remainingPercent = optionalPercent(row["remainingPercent"]);
+		const usedPercent = remainingPercent !== undefined ? 100 - remainingPercent : undefined;
+		const windowObj = isRecord(row["window"]) ? row["window"] : undefined;
+		const duration = typeof windowObj?.["duration"] === "number" ? windowObj["duration"] : undefined;
+		const unit = typeof windowObj?.["unit"] === "string" ? windowObj["unit"] : undefined;
+		let windowSeconds: number | undefined;
+		if (duration && unit) {
+			const mult = unit === "minute" ? 60 : unit === "hour" ? 3600 : unit === "day" ? 86400 : 604800;
+			windowSeconds = duration * mult;
+		}
+		const resetStr = typeof row["resetAt"] === "string" ? row["resetAt"] : undefined;
+		const resetsAt = resetStr ? Math.round(Date.parse(resetStr) / 1000) : undefined;
+		rateLimits.push({
+			id: `kimi-${String(i)}`,
+			...(name !== undefined ? { name } : {}),
+			windows: [
+				{
+					...(usedPercent !== undefined ? { usedPercent } : {}),
+					...(remainingPercent !== undefined ? { remainingPercent } : {}),
+					...(windowSeconds !== undefined ? { windowSeconds } : {}),
+					...(resetsAt !== undefined && !Number.isNaN(resetsAt) ? { resetsAt } : {}),
+				},
+			],
+		});
+	}
+	const extra = isRecord(payload["extraUsage"]) ? payload["extraUsage"] : undefined;
+	const balanceCents = typeof extra?.["balanceCents"] === "number" ? extra["balanceCents"] : undefined;
+	const currency = typeof extra?.["currency"] === "string" ? extra["currency"] : "CNY";
+	const creditsBalance = balanceCents !== undefined ? `${(balanceCents / 100).toFixed(2)} ${currency}` : undefined;
+	const fetchedAt = optionalFiniteNumber(payload["fetchedAt"]);
+	if (rateLimits.length === 0 && creditsBalance === undefined) return undefined;
+	return {
+		rateLimits,
+		...(creditsBalance !== undefined ? { creditsBalance } : {}),
+		...(fetchedAt !== undefined ? { fetchedAt } : {}),
+	};
+}
+
 export function usageHasVisibleFields(usage: UsageView): boolean {
 	return (
 		usage.rateLimits.some((limit) => limit.windows.length > 0 || limit.name !== undefined) ||

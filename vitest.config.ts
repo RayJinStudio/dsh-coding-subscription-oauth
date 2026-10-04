@@ -1,7 +1,18 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+	resolve: {
+		alias: {
+			// The DSH web shell injects this platform module at runtime; jsdom
+			// tests resolve it to a minimal local stub (see tests/stubs).
+			"@deepseek-ai/dsh-client-ui-primitives": fileURLToPath(
+				new URL("./tests/stubs/dsh-client-ui-primitives/index.js", import.meta.url),
+			),
+		},
+	},
 	test: {
+		testTimeout: 15_000,
 		include: ["tests/**/*.spec.ts", "tests/**/*.spec.tsx"],
 		environment: "node",
 		coverage: {

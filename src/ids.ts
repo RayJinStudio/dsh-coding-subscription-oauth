@@ -62,3 +62,5 @@ export {
 export const CODING_OAUTH_API_BASE = "/plugins/dsh-grok-build" as const;
 export const CODING_OAUTH_ACCOUNTS_SET_ACTIVE_PATH = `${CODING_OAUTH_API_BASE}/oauth/accounts/set-active` as const;
 export const CODING_OAUTH_ACCOUNTS_REMOVE_PATH = `${CODING_OAUTH_API_BASE}/oauth/accounts/remove` as const;
+export const CODING_OAUTH_SUBSCRIPTION_USAGE_PATH = `${CODING_OAUTH_API_BASE}/oauth/usage` as const;
+export const KIMI_USAGE_PATH = `${CODING_OAUTH_API_BASE}/kimi/usage` as const;

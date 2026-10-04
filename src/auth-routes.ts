@@ -22,6 +22,7 @@ import {
 	CODING_OAUTH_LOGOUT_PATH,
 	CODING_OAUTH_MODELS_PATH,
 	CODING_OAUTH_STATUS_PATH,
+	CODING_OAUTH_SUBSCRIPTION_USAGE_PATH,
 	type CodingOAuthProviderSlug,
 	GROK_BUILD_AUTH_IMPORT_PATH,
 	GROK_BUILD_AUTH_LOGIN_CANCEL_PATH,
@@ -30,6 +31,7 @@ import {
 	GROK_BUILD_AUTH_LOGOUT_PATH,
 	GROK_BUILD_AUTH_MODELS_PATH,
 	GROK_BUILD_AUTH_STATUS_PATH,
+	KIMI_USAGE_PATH,
 } from "./ids.ts";
 import { loginGrokBuildPkce } from "./oauth.ts";
 import type { SubscriptionLoginMethod } from "./oauth-providers.ts";
@@ -49,6 +51,7 @@ export {
 	CODING_OAUTH_LOGOUT_PATH,
 	CODING_OAUTH_MODELS_PATH,
 	CODING_OAUTH_STATUS_PATH,
+	CODING_OAUTH_SUBSCRIPTION_USAGE_PATH,
 	GROK_BUILD_AUTH_IMPORT_PATH,
 	GROK_BUILD_AUTH_LOGIN_CANCEL_PATH,
 	GROK_BUILD_AUTH_LOGIN_CODE_PATH,
@@ -56,6 +59,7 @@ export {
 	GROK_BUILD_AUTH_LOGOUT_PATH,
 	GROK_BUILD_AUTH_MODELS_PATH,
 	GROK_BUILD_AUTH_STATUS_PATH,
+	KIMI_USAGE_PATH,
 } from "./ids.ts";
 export type GrokBuildLoginMethod = "pkce" | "device";
 
@@ -839,6 +843,8 @@ export function registerCodingOAuthRoutes(
 		lastCall: "no-call",
 		updatedAt: null,
 	}),
+	usageReader?: () => unknown | Promise<unknown>,
+	kimiUsageReader?: () => unknown | Promise<unknown>,
 ): void {
 	const grok = new GrokBuildWebAuth(grokSession);
 	const subscriptions = new Map(
@@ -1053,6 +1059,47 @@ export function registerCodingOAuthRoutes(
 						if (slug === "grok") await grok.removeAccount(accountId);
 						else await subscription(slug).removeAccount(accountId);
 						json(res, 200, await allStatus(decision.accessMode));
+					} catch (error: unknown) {
+						json(res, requestErrorStatus(error, 500), { error: safeMessage(error) });
+					}
+				},
+			}),
+			webServer.register({
+				kind: "exact",
+				path: CODING_OAUTH_SUBSCRIPTION_USAGE_PATH,
+				handler: async (req, res) => {
+					if (req.method !== "GET") return json(res, 405, { error: "method not allowed" });
+					const decision = ownerRequestPolicy.authorize(req);
+					if (!decision.authorized) return json(res, 403, { error: "forbidden" });
+					try {
+						const [codexRes, kimiRes] = await Promise.allSettled([
+							usageReader ? Promise.resolve(usageReader()) : Promise.resolve(undefined),
+							kimiUsageReader ? Promise.resolve(kimiUsageReader()) : Promise.resolve(undefined),
+						]);
+						const codexUsage = codexRes.status === "fulfilled" ? codexRes.value : undefined;
+						const kimiUsage = kimiRes.status === "fulfilled" ? kimiRes.value : undefined;
+						json(res, 200, {
+							providers: {
+								codex: codexUsage ? { supported: true, usage: codexUsage } : { supported: false },
+								kimi: kimiUsage ? { supported: true, usage: kimiUsage } : { supported: false },
+							},
+						});
+					} catch (error: unknown) {
+						json(res, requestErrorStatus(error, 500), { error: safeMessage(error) });
+					}
+				},
+			}),
+			webServer.register({
+				kind: "exact",
+				path: KIMI_USAGE_PATH,
+				handler: async (req, res) => {
+					if (req.method !== "GET") return json(res, 405, { error: "method not allowed" });
+					const decision = ownerRequestPolicy.authorize(req);
+					if (!decision.authorized) return json(res, 403, { error: "forbidden" });
+					try {
+						if (!kimiUsageReader) return json(res, 404, { error: "disabled" });
+						const result = await kimiUsageReader();
+						json(res, 200, result);
 					} catch (error: unknown) {
 						json(res, requestErrorStatus(error, 500), { error: safeMessage(error) });
 					}

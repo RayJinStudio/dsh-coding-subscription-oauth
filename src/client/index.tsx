@@ -15,6 +15,11 @@ import type { GrokBuildSettingsInjected } from "./GrokBuildSettings.tsx";
 import { GrokBuildSettings } from "./GrokBuildSettings.tsx";
 import type { GrokBuildSettingsKey } from "./locales.ts";
 import { en, zh } from "./locales.ts";
+import {
+	createCurrentModelReader,
+	type ModelDirectoriesLike,
+	SubscriptionUsageBadge,
+} from "./SubscriptionUsageBadge.tsx";
 import type { CodingOAuthStatus, SettingsTabId } from "./types.ts";
 
 declare module "@deepseek-ai/dsh-client-ui-slots" {
@@ -249,6 +254,27 @@ export function apply(ctx: ClientContext): void {
 					},
 					register: (slots) => {
 						const disposeToolviews = registerCodexImageToolviews(slots, t);
+						const models = (): ModelDirectoriesLike | undefined =>
+							ctx.get("modelDirectories") as ModelDirectoriesLike | undefined;
+						const disposeUsageBadge = slots.inject("conversation.composer.dock", () => {
+							try {
+								return slots.register(
+									{
+										name: "conversation.composer.dock",
+										id: "coding-subscription-usage",
+										order: 10,
+										locale: namespace,
+										inject: (sessionId: string) => ({
+											currentModel: createCurrentModelReader(models, sessionId),
+											t,
+										}),
+									},
+									SubscriptionUsageBadge,
+								);
+							} catch {
+								return undefined;
+							}
+						});
 						const disposeSettings = slots.inject("settings.section", () => {
 							try {
 								const release = slots.register(
@@ -273,6 +299,7 @@ export function apply(ctx: ClientContext): void {
 						});
 						return () => {
 							disposeToolviews();
+							disposeUsageBadge();
 							disposeSettings();
 						};
 					},

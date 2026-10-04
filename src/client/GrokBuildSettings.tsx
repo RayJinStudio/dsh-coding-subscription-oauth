@@ -19,6 +19,7 @@ import {
 	GATEWAY_REVEAL_PATH,
 	GATEWAY_ROTATE_PATH,
 	IMAGINE_CREDENTIAL_PATH,
+	KIMI_USAGE_PATH,
 	LOGIN_CANCEL_PATH,
 	LOGIN_CODE_PATH,
 	LOGIN_PATH,
@@ -41,6 +42,7 @@ import {
 	parseGateway,
 	parseGatewayPort,
 	parseImagineCredential,
+	parseKimiUsageView,
 	parsePreview,
 	parseSources,
 	parseUsage,
@@ -105,6 +107,9 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 	const [usage, setUsage] = useState<UsageView | undefined>(undefined);
 	const [usageError, setUsageError] = useState<string | undefined>(undefined);
 	const [usageLoading, setUsageLoading] = useState(false);
+	const [kimiUsage, setKimiUsage] = useState<UsageView | undefined>(undefined);
+	const [kimiUsageError, setKimiUsageError] = useState<string | undefined>(undefined);
+	const [kimiUsageLoading, setKimiUsageLoading] = useState(false);
 	const [imagine, setImagine] = useState<ImagineCredentialView | undefined>(undefined);
 	const [imagineError, setImagineError] = useState<string | undefined>(undefined);
 	const [gateway, setGateway] = useState<GatewayView | undefined>(undefined);
@@ -194,6 +199,19 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 		}
 	}, [t]);
 
+	const refreshKimiUsage = useCallback(async () => {
+		setKimiUsageLoading(true);
+		try {
+			setKimiUsage(parseKimiUsageView(await jsonRequest<unknown>(KIMI_USAGE_PATH)));
+			setKimiUsageError(undefined);
+		} catch (error: unknown) {
+			setKimiUsage(undefined);
+			setKimiUsageError(error instanceof Error ? error.message : t("usageUnavailable"));
+		} finally {
+			setKimiUsageLoading(false);
+		}
+	}, [t]);
+
 	// Accounts: status immediately; sources shortly after (non-blocking for first paint).
 	useEffect(() => {
 		ensureMicroStyles();
@@ -266,6 +284,17 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 		setUsageError(undefined);
 		setUsageLoading(false);
 	}, [capabilities?.value.codexUsage, refreshUsage, status?.providers.codex.status]);
+
+	useEffect(() => {
+		const signedIn = status?.providers.kimi.status === "signed-in";
+		if (signedIn) {
+			void refreshKimiUsage();
+			return;
+		}
+		setKimiUsage(undefined);
+		setKimiUsageError(undefined);
+		setKimiUsageLoading(false);
+	}, [refreshKimiUsage, status?.providers.kimi.status]);
 
 	useEffect(() => {
 		if (gateway !== undefined) setPortDraft(String(gateway.port));
@@ -732,6 +761,9 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 						usage={usage}
 						usageError={usageError}
 						usageLoading={usageLoading}
+						kimiUsage={kimiUsage}
+						kimiUsageError={kimiUsageError}
+						kimiUsageLoading={kimiUsageLoading}
 						onSignIn={(slug, method, targetAccountId) => signIn(slug, method, targetAccountId)}
 						onSignOut={(slug) => {
 							void signOut(slug);

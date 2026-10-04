@@ -4,7 +4,6 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { PROVIDERS } from "../constants.ts";
 import { allOfficialCliMissing, anyOfficialCliAvailable } from "../display.ts";
 import {
-	accountGridStyle,
 	bodyStyle,
 	cardStyle,
 	dotStyle,
@@ -32,6 +31,7 @@ import { NoticeBanner } from "./NoticeBanner.tsx";
 import { OpenCodeGoCard } from "./OpenCodeGoCard.tsx";
 import { ProviderCard } from "./ProviderCard.tsx";
 import { ProviderIcon, type ProviderIconKind } from "./ProviderIcons.tsx";
+import { UsageBadgeDisplaySetting } from "./UsageBadgeDisplaySetting.tsx";
 
 export type ProviderFilterId = "opencodeGo" | ProviderSlug | "antigravity";
 
@@ -58,6 +58,9 @@ export interface AccountsTabProps {
 	usage: UsageView | undefined;
 	usageError: string | undefined;
 	usageLoading: boolean;
+	kimiUsage?: UsageView | undefined;
+	kimiUsageError?: string | undefined;
+	kimiUsageLoading?: boolean;
 	onSignIn: (slug: ProviderSlug, method: LoginMethod, targetAccountId?: string) => void | Promise<void>;
 	onSignOut: (slug: ProviderSlug) => void;
 	onCancelLogin: (slug: ProviderSlug) => void;
@@ -103,6 +106,9 @@ export function AccountsTab({
 	usage,
 	usageError,
 	usageLoading,
+	kimiUsage,
+	kimiUsageError,
+	kimiUsageLoading,
 	onSignIn,
 	onSignOut,
 	onCancelLogin,
@@ -348,10 +354,10 @@ export function AccountsTab({
 								popupBlocked={popupBlocked[definition.slug] === true}
 								expanded={expanded}
 								source={sources?.find((entry) => entry.kind === definition.slug)}
-								showUsage={showUsage}
-								usage={usage}
-								usageError={usageError}
-								usageLoading={usageLoading}
+								showUsage={definition.slug === "kimi" ? true : showUsage}
+								usage={definition.slug === "kimi" ? kimiUsage : usage}
+								usageError={definition.slug === "kimi" ? kimiUsageError : usageError}
+								usageLoading={definition.slug === "kimi" ? (kimiUsageLoading ?? false) : usageLoading}
 								onSignIn={(method, targetAccountId) => onSignIn(definition.slug, method, targetAccountId)}
 								onSignOut={() => {
 									onSignOut(definition.slug);
@@ -417,6 +423,9 @@ export function AccountsTab({
 						<code style={snippetStyle}>{t("antigravityCliCommand")}</code>
 					</div>
 				) : null}
+				<div style={cardStyle}>
+					<UsageBadgeDisplaySetting t={t} />
+				</div>
 			</div>
 		</>
 	);

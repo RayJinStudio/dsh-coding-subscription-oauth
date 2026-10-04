@@ -261,12 +261,13 @@ export function ProviderCard({
 		return available.filter((id) => id.toLowerCase().includes(query));
 	}, [available, modelFilter]);
 
-	const usagePercent =
-		definition.slug === "codex" && showUsage
-			? usage?.individualRemainingPercent === undefined
-				? usage?.rateLimits[0]?.windows[0]?.usedPercent
-				: 100 - usage.individualRemainingPercent
-			: undefined;
+	const isUsageActive =
+		(definition.slug === "codex" && showUsage) || (definition.slug === "kimi" && showUsage && usage !== undefined);
+	const usagePercent = isUsageActive
+		? usage?.individualRemainingPercent === undefined
+			? usage?.rateLimits[0]?.windows[0]?.usedPercent
+			: 100 - usage.individualRemainingPercent
+		: undefined;
 	const fetchedAt = formatEpoch(usage?.fetchedAt);
 
 	return (
@@ -737,9 +738,11 @@ export function ProviderCard({
 					{grokProviderStatus?.status === "signed-in" && grokProviderStatus.catalogError !== undefined ? (
 						<p style={{ ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" }}>{t("catalogError")}</p>
 					) : null}
-					{definition.slug === "codex" && showUsage ? (
+					{isUsageActive ? (
 						<div style={nestedStyle}>
-							<p style={{ ...bodyStyle, color: "var(--dsw-alias-label-primary)" }}>{t("usageTitle")}</p>
+							<p style={{ ...bodyStyle, color: "var(--dsw-alias-label-primary)" }}>
+								{t(definition.slug === "kimi" ? "kimiUsageTitle" : "usageTitle")}
+							</p>
 							{usageError === undefined ? null : (
 								<p style={{ ...bodyStyle, color: "var(--dsw-alias-state-error-primary)" }} role="alert">
 									{usageError}
