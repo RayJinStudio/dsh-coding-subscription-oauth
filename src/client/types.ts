@@ -20,6 +20,7 @@ export type SourcePreviewAction = "import" | "reuse" | "overwrite" | "blocked";
 export type SourceCommitAction = "imported" | "unchanged" | "overwritten";
 export type CapabilityFlagKey =
 	| "codexSearch"
+	| "kimiSearch"
 	| "codexImages"
 	| "codexImageEdits"
 	| "codexImagesAnyModel"
@@ -29,8 +30,27 @@ export type CapabilityFlagKey =
 	| "grokImagineVideo";
 export type CapabilityLimitKey = "searchResults" | "imageCount" | "videoArtifactTtlMs";
 export type CapabilitySettingKey = CapabilityFlagKey | CapabilityLimitKey;
-export type SettingsTabId = "accounts" | "capabilities" | "gateway" | "about";
+export type SettingsTabId = "accounts" | "capabilities" | "gateway" | "search" | "about";
 export type CopyField = "openai" | "anthropic" | "key";
+
+/** One selectable DSH web search provider. */
+export interface SearchProviderOption {
+	/** Provider id written into the profile's `web.searchProvider`, or "" for auto. */
+	id: string;
+	/** Whether DSH ships this provider rather than the plugin registering it. */
+	builtIn: boolean;
+	/** Cheap local usability check reported by the web seam. */
+	available: boolean;
+}
+
+/** Effective search-provider pin plus its candidates. */
+export interface SearchProviderView {
+	writable: boolean;
+	/** Effective id; "" means DSH auto-selects the only usable provider. */
+	current: string;
+	candidates: SearchProviderOption[];
+	unavailableReason?: string;
+}
 
 export type GrokStatus =
 	| { status: "signed-out"; grokImportAvailable: boolean }
@@ -139,6 +159,7 @@ export interface SourcePreview {
 
 export interface CapabilityFlags {
 	codexSearch: boolean;
+	kimiSearch: boolean;
 	codexImages: boolean;
 	codexImageEdits: boolean;
 	codexImagesAnyModel: boolean;

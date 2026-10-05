@@ -77,6 +77,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     retryPolicy: z<RetryPolicyConfig>;
     capabilities: z<NoInfer<Schemastery.ObjectS<NoInfer<{
         codexSearch: z<boolean, boolean, "defined">;
+        kimiSearch: z<boolean, boolean, "defined">;
         codexImages: z<boolean, boolean, "defined">;
         codexImageEdits: z<boolean, boolean, "defined">;
         codexImagesAnyModel: z<boolean, boolean, "defined">;
@@ -89,6 +90,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         videoArtifactTtlMs: z<number, number, "defined">;
     }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
         codexSearch: z<boolean, boolean, "defined">;
+        kimiSearch: z<boolean, boolean, "defined">;
         codexImages: z<boolean, boolean, "defined">;
         codexImageEdits: z<boolean, boolean, "defined">;
         codexImagesAnyModel: z<boolean, boolean, "defined">;
@@ -134,6 +136,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     retryPolicy: z<RetryPolicyConfig>;
     capabilities: z<NoInfer<Schemastery.ObjectS<NoInfer<{
         codexSearch: z<boolean, boolean, "defined">;
+        kimiSearch: z<boolean, boolean, "defined">;
         codexImages: z<boolean, boolean, "defined">;
         codexImageEdits: z<boolean, boolean, "defined">;
         codexImagesAnyModel: z<boolean, boolean, "defined">;
@@ -146,6 +149,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         videoArtifactTtlMs: z<number, number, "defined">;
     }>>>, NoInfer<Schemastery.ObjectT<NoInfer<{
         codexSearch: z<boolean, boolean, "defined">;
+        kimiSearch: z<boolean, boolean, "defined">;
         codexImages: z<boolean, boolean, "defined">;
         codexImageEdits: z<boolean, boolean, "defined">;
         codexImagesAnyModel: z<boolean, boolean, "defined">;

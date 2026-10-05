@@ -23,6 +23,8 @@ import type {
 	GrokBuildSettingsInjected,
 	ImagineCredentialView,
 	ProviderStatus,
+	SearchProviderOption,
+	SearchProviderView,
 	SourceCommitAction,
 	SourceConflict,
 	SourceKind,
@@ -165,6 +167,7 @@ export function boundedInteger(value: unknown, min: number, max: number, fallbac
 export function emptyCapabilitySettings(): CapabilitySettingsView {
 	return {
 		codexSearch: false,
+		kimiSearch: false,
 		codexImages: false,
 		codexImageEdits: false,
 		codexImagesAnyModel: false,
@@ -182,6 +185,7 @@ export function parseCapabilitySettings(value: unknown): CapabilitySettingsView 
 	const source = isRecord(value) ? value : {};
 	return {
 		codexSearch: source["codexSearch"] === true,
+		kimiSearch: source["kimiSearch"] === true,
 		codexImages: source["codexImages"] === true,
 		codexImageEdits: source["codexImageEdits"] === true,
 		codexImagesAnyModel: source["codexImagesAnyModel"] === true,
@@ -370,6 +374,31 @@ export function usageHasVisibleFields(usage: UsageView): boolean {
 		usage.spendControlReached === true ||
 		usage.resetCredits !== undefined
 	);
+}
+
+/** Admit the search-provider projection; an unreadable payload reads as read-only. */
+export function parseSearchProvider(value: unknown): SearchProviderView {
+	if (!isRecord(value)) return { writable: false, current: "", candidates: [] };
+	const candidates: SearchProviderOption[] = [];
+	if (Array.isArray(value["candidates"])) {
+		for (const entry of value["candidates"]) {
+			if (!isRecord(entry)) continue;
+			const id = optionalString(entry["id"]);
+			if (id === undefined) continue;
+			candidates.push({
+				id,
+				builtIn: entry["builtIn"] === true,
+				available: entry["available"] === true,
+			});
+		}
+	}
+	const reason = optionalString(value["unavailableReason"]);
+	return {
+		writable: value["writable"] === true,
+		current: optionalString(value["current"]) ?? "",
+		candidates,
+		...(reason === undefined ? {} : { unavailableReason: reason }),
+	};
 }
 
 export function parseGateway(value: unknown): GatewayView | undefined {

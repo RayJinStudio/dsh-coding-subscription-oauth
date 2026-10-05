@@ -7,6 +7,7 @@ import {
 	CODEX_USAGE_PATH,
 	IMAGINE_CREDENTIAL_STATUS_PATH,
 	registerCapabilityRoutes,
+	SEARCH_PROVIDER_PATH,
 } from "../src/capability-routes.ts";
 import {
 	CAPABILITY_SETTINGS_NAMESPACE,
@@ -111,6 +112,7 @@ function createHarness(options?: {
 	controller?: FakeController;
 	usage?: () => unknown | Promise<unknown>;
 	credentialInfo?: () => unknown | Promise<unknown>;
+	searchProvider?: { snapshot(): unknown; select(value: unknown): Promise<unknown> };
 	failOnPath?: string;
 	routes?: Map<string, RegisteredRoute["handler"]>;
 }): {
@@ -141,6 +143,7 @@ function createHarness(options?: {
 			controller,
 			...(options?.usage === undefined ? {} : { usage: options.usage }),
 			...(options?.credentialInfo === undefined ? {} : { credentialInfo: options.credentialInfo }),
+			...(options?.searchProvider === undefined ? {} : { searchProvider: options.searchProvider }),
 		},
 	);
 	return { controller, routes, dispose };
@@ -177,6 +180,48 @@ describe("capability route registrar", () => {
 		});
 		expect(full.routes.has(CODEX_USAGE_PATH)).toBe(true);
 		expect(full.routes.has(IMAGINE_CREDENTIAL_STATUS_PATH)).toBe(true);
+	});
+
+	it("registers the search-provider route only when injected", async () => {
+		expect(createHarness().routes.has(SEARCH_PROVIDER_PATH)).toBe(false);
+
+		const seen: unknown[] = [];
+		const surface = {
+			snapshot: () => ({ writable: true, current: "deepseek-official", candidates: [] }),
+			select: async (value: unknown) => {
+				seen.push(value);
+				return { writable: true, current: value, candidates: [] };
+			},
+		};
+		const full = createHarness({ searchProvider: surface });
+		expect(full.routes.has(SEARCH_PROVIDER_PATH)).toBe(true);
+
+		const listed = await invoke(full.routes.get(SEARCH_PROVIDER_PATH), request("GET"));
+		expect(listed.status).toBe(200);
+		expect(listed.body).toEqual({ writable: true, current: "deepseek-official", candidates: [] });
+
+		const patched = await invoke(
+			full.routes.get(SEARCH_PROVIDER_PATH),
+			request("PATCH", JSON.stringify({ searchProvider: "kimi-oauth-search" })),
+		);
+		expect(patched.status).toBe(200);
+		expect(seen).toEqual(["kimi-oauth-search"]);
+	});
+
+	it("rejects a non-string search provider and an unauthenticated caller", async () => {
+		const full = createHarness({
+			searchProvider: { snapshot: () => ({}), select: async (value) => ({ current: value }) },
+		});
+		const handler = full.routes.get(SEARCH_PROVIDER_PATH);
+
+		const badBody = await invoke(handler, request("PATCH", JSON.stringify({ searchProvider: 7 })));
+		expect(badBody.status).toBe(400);
+
+		const wrongMethod = await invoke(handler, request("DELETE"));
+		expect(wrongMethod.status).toBe(405);
+
+		const foreign = await invoke(handler, request("GET", "", {}, "10.0.0.5"));
+		expect(foreign.status).toBe(403);
 	});
 
 	it("rolls back the capabilities route when the usage route fails to register", () => {

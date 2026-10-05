@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { type CapabilitySettings, type CapabilitySettingsPatch, type CapabilitySettingsSnapshot } from "./capability-settings.js";
 import { type OwnerRequestPolicy } from "./web-origin.js";
-export { CAPABILITY_SETTINGS_PATH, CODEX_USAGE_PATH, IMAGINE_CREDENTIAL_STATUS_PATH } from "./ids.js";
+export { CAPABILITY_SETTINGS_PATH, CODEX_USAGE_PATH, IMAGINE_CREDENTIAL_STATUS_PATH, SEARCH_PROVIDER_PATH, } from "./ids.js";
 /** Structural `ctx.webServer` + `ctx.effect` surface used by the registrar. */
 export interface CapabilityRouteContext {
     readonly webServer: {
@@ -36,7 +36,14 @@ export interface CapabilityRouteOptions {
     readonly controller: CapabilityRouteController;
     readonly usage?: () => unknown | Promise<unknown>;
     readonly credentialInfo?: () => unknown | Promise<unknown>;
+    /** Read or change the pinned DSH web search provider. */
+    readonly searchProvider?: SearchProviderRouteSurface | undefined;
     readonly ownerRequestPolicy?: OwnerRequestPolicy;
+}
+/** Minimal surface the search-provider route needs from the settings helper. */
+export interface SearchProviderRouteSurface {
+    snapshot(): unknown;
+    select(value: unknown): Promise<unknown>;
 }
 /** Register the plugin-owned capability routes. Owns and returns the route disposer. */
 export declare function registerCapabilityRoutes(ctx: CapabilityRouteContext, options: CapabilityRouteOptions): () => void;

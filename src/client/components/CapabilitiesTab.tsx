@@ -27,7 +27,7 @@ import { Badge } from "./Badge.tsx";
 import { ToggleSwitch } from "./ToggleSwitch.tsx";
 
 export interface CapabilitiesTabProps {
-	scope?: "codex" | "grok" | undefined;
+	scope?: "codex" | "kimi" | "grok" | undefined;
 	t: GrokBuildSettingsInjected["t"];
 	capabilities: CapabilitySnapshot | undefined;
 	capabilitiesError: string | undefined;
@@ -35,8 +35,9 @@ export interface CapabilitiesTabProps {
 	imagine: ImagineCredentialView | undefined;
 	imagineError: string | undefined;
 	codexSignedIn: boolean;
+	kimiSignedIn: boolean;
 	onRetry: () => void;
-	onOpenAccounts: (provider: "codex") => void;
+	onOpenAccounts: (provider: "codex" | "kimi") => void;
 	onFocusDependency: (target: "codexImages" | "imagineCredential") => void;
 	onPatchCapability: (key: CapabilitySettingKey, value: boolean | number) => Promise<boolean | undefined> | undefined;
 }
@@ -50,13 +51,23 @@ export function CapabilitiesTab({
 	imagine,
 	imagineError,
 	codexSignedIn,
+	kimiSignedIn,
 	onRetry,
 	onOpenAccounts,
 	onFocusDependency,
 	onPatchCapability,
 }: CapabilitiesTabProps) {
-	const codexToggles = CAPABILITY_TOGGLES.filter((item) => scope !== "grok" && !item.key.startsWith("grokImagine"));
-	const imagineToggles = CAPABILITY_TOGGLES.filter((item) => scope !== "codex" && item.key.startsWith("grokImagine"));
+	// Kimi's search toggle belongs on the Kimi card; every other toggle is Codex
+	// (or Grok Imagine) and stays there. An unscoped tab shows them all.
+	const codexToggles = CAPABILITY_TOGGLES.filter(
+		(item) =>
+			scope !== "grok" &&
+			!item.key.startsWith("grokImagine") &&
+			(scope === undefined || (item.key === "kimiSearch") === (scope === "kimi")),
+	);
+	const imagineToggles = CAPABILITY_TOGGLES.filter(
+		(item) => scope !== "codex" && scope !== "kimi" && item.key.startsWith("grokImagine"),
+	);
 
 	return (
 		<section style={cardStyle} aria-labelledby={`coding-oauth-capabilities-title-${scope ?? "all"}`}>
@@ -66,7 +77,7 @@ export function CapabilitiesTab({
 				</h3>
 				<p style={{ ...bodyStyle, marginTop: 4 }}>{t("capabilitiesIntro")}</p>
 			</div>
-			{scope === "codex" || imagineError === undefined ? null : (
+			{scope === "codex" || scope === "kimi" || imagineError === undefined ? null : (
 				<div style={nestedStyle} role="alert">
 					<p style={errorStyle}>{imagineError}</p>
 					<div>
@@ -76,7 +87,7 @@ export function CapabilitiesTab({
 					</div>
 				</div>
 			)}
-			{scope === "codex" ? null : imagine === undefined && imagineError === undefined ? (
+			{scope === "codex" || scope === "kimi" ? null : imagine === undefined && imagineError === undefined ? (
 				<div style={skeletonStyle} role="status" aria-busy="true">
 					<div style={statusStyle}>
 						<span aria-hidden="true" style={dotStyle("loading")} />
@@ -119,15 +130,24 @@ export function CapabilitiesTab({
 						{codexToggles.map((item) => {
 							const checked = capabilities.value[item.key];
 							const imagesOff = item.requiresImages === true && !capabilities.value.codexImages;
-							const dependencyReason = !codexSignedIn
-								? t("requiresCodexSignIn")
+							// The Kimi toggle depends on the Kimi sign-in, not the Codex one,
+							// so a Kimi-only setup is not shown a disabled switch.
+							const isKimi = item.key === "kimiSearch";
+							const signedIn = isKimi ? kimiSignedIn : codexSignedIn;
+							const dependencyReason = !signedIn
+								? isKimi
+									? t("requiresKimiSignIn")
+									: t("requiresCodexSignIn")
 								: imagesOff
 									? t("requiresCodexImages")
 									: undefined;
 							const disabled = capabilitiesBusy || !capabilities.writable || dependencyReason !== undefined;
 							const switchId = `cap-switch-${item.key}`;
-							const repairAction = !codexSignedIn
-								? { label: t("openCodexAccount"), action: () => onOpenAccounts("codex") }
+							const repairAction = !signedIn
+								? {
+										label: isKimi ? t("openKimiAccount") : t("openCodexAccount"),
+										action: () => onOpenAccounts(isKimi ? "kimi" : "codex"),
+									}
 								: imagesOff
 									? { label: t("focusCodexImages"), action: () => onFocusDependency("codexImages") }
 									: undefined;
@@ -168,7 +188,9 @@ export function CapabilitiesTab({
 							);
 						})}
 					</ul>
-					{scope !== "codex" ? <h4 style={{ ...titleStyle, fontSize: 14 }}>{t("imagineTitle")}</h4> : null}
+					{scope === "codex" || scope === "kimi" ? null : (
+						<h4 style={{ ...titleStyle, fontSize: 14 }}>{t("imagineTitle")}</h4>
+					)}
 					<ul style={listStyle}>
 						{imagineToggles.map((item) => {
 							const checked = capabilities.value[item.key];
@@ -215,9 +237,7 @@ export function CapabilitiesTab({
 						<p style={hintStyle}>{t("capabilityLimitsHint")}</p>
 						<ul style={listStyle}>
 							{CAPABILITY_LIMITS.filter(
-								(item) =>
-									scope === undefined ||
-									(scope === "grok" ? item.key === "videoArtifactTtlMs" : item.key !== "videoArtifactTtlMs"),
+								(item) => scope === undefined || item.key !== "videoArtifactTtlMs" || scope === "grok",
 							).map((item) => {
 								const displayValue = capabilities.value[item.key] / item.scale;
 								const inputId = `cap-limit-${item.key}`;

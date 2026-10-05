@@ -31,12 +31,11 @@ import { NoticeBanner } from "./NoticeBanner.tsx";
 import { OpenCodeGoCard } from "./OpenCodeGoCard.tsx";
 import { ProviderCard } from "./ProviderCard.tsx";
 import { ProviderIcon, type ProviderIconKind } from "./ProviderIcons.tsx";
-import { UsageBadgeDisplaySetting } from "./UsageBadgeDisplaySetting.tsx";
 
 export type ProviderFilterId = "opencodeGo" | ProviderSlug | "antigravity";
 
 export interface AccountsTabProps {
-	renderCapabilities?: ((scope: "codex" | "grok") => ReactNode) | undefined;
+	renderCapabilities?: ((scope: "codex" | "kimi" | "grok") => ReactNode) | undefined;
 	onLoadCapabilities?: (() => void) | undefined;
 	onStartConversation?: (() => void) | undefined;
 	t: GrokBuildSettingsInjected["t"];
@@ -339,7 +338,7 @@ export function AccountsTab({
 						<Fragment key={definition.slug}>
 							<ProviderCard
 								capabilitiesPanel={
-									definition.slug === "codex" || definition.slug === "grok"
+									definition.slug === "codex" || definition.slug === "kimi" || definition.slug === "grok"
 										? renderCapabilities?.(definition.slug)
 										: undefined
 								}
@@ -423,9 +422,6 @@ export function AccountsTab({
 						<code style={snippetStyle}>{t("antigravityCliCommand")}</code>
 					</div>
 				) : null}
-				<div style={cardStyle}>
-					<UsageBadgeDisplaySetting t={t} />
-				</div>
 			</div>
 		</>
 	);

@@ -64,3 +64,5 @@ export const CODING_OAUTH_ACCOUNTS_SET_ACTIVE_PATH = `${CODING_OAUTH_API_BASE}/o
 export const CODING_OAUTH_ACCOUNTS_REMOVE_PATH = `${CODING_OAUTH_API_BASE}/oauth/accounts/remove` as const;
 export const CODING_OAUTH_SUBSCRIPTION_USAGE_PATH = `${CODING_OAUTH_API_BASE}/oauth/usage` as const;
 export const KIMI_USAGE_PATH = `${CODING_OAUTH_API_BASE}/kimi/usage` as const;
+/** Effective DSH web search provider pin, read and written through the profile config editor. */
+export const SEARCH_PROVIDER_PATH = `${CODING_OAUTH_API_BASE}/web/search-provider` as const;

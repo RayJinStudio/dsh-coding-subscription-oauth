@@ -8,7 +8,6 @@
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import { type CapabilitySettings } from "./capability-settings.js";
 import type { CodexModelCapabilities } from "./codex-model-capabilities.js";
-import type { CodexSearchProvider } from "./codex-search.js";
 export type CapabilityRuntimeListener = (settings: CapabilitySettings) => void | Promise<void>;
 /** Process-local live projection shared by optional service fibers. */
 export declare class CapabilityRuntimeState {
@@ -23,11 +22,32 @@ export declare class CapabilityRuntimeState {
     reset(): CapabilitySettings;
     subscribe(listener: CapabilityRuntimeListener, emitCurrent?: boolean): () => void;
 }
-export interface CapabilitySearchRegistry {
-    registerSearchProvider(provider: CodexSearchProvider): () => void;
+/**
+ * Structural `WebSearchProvider` shared by every subscription search provider,
+ * so one binding serves both without this module importing `dsh-web` and
+ * without naming either provider's concrete result type.
+ */
+export interface SubscriptionSearchProvider {
+    readonly id: string;
+    available(): boolean;
+    search(request: {
+        readonly query: string;
+        readonly maxResults?: number;
+    }, signal?: AbortSignal): Promise<{
+        readonly sources: readonly {
+            readonly url: string;
+        }[];
+        readonly truncated: boolean;
+    }>;
 }
-/** Dynamically expose search and clamp every request to the live result limit. */
-export declare function bindCapabilitySearch(state: CapabilityRuntimeState, registry: CapabilitySearchRegistry, provider: CodexSearchProvider): () => void;
+export interface CapabilitySearchRegistry {
+    registerSearchProvider(provider: SubscriptionSearchProvider): () => void;
+}
+/**
+ * Dynamically expose one search provider behind its own capability flag,
+ * clamping every request to the live result limit.
+ */
+export declare function bindCapabilitySearch(state: CapabilityRuntimeState, registry: CapabilitySearchRegistry, provider: SubscriptionSearchProvider): () => void;
 export interface CapabilityToolRegistry {
     register(definition: ToolDefinition): () => void;
 }

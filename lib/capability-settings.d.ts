@@ -11,17 +11,19 @@ import { CAPABILITY_SETTINGS_NAMESPACE } from "./ids.js";
 /** Settings namespace owned by this plugin. */
 export { CAPABILITY_SETTINGS_NAMESPACE } from "./ids.js";
 /** Default-off capability flags. Presence in the user section marks an override. */
-export declare const CAPABILITY_FLAG_KEYS: readonly ["codexSearch", "codexImages", "codexImageEdits", "codexImagesAnyModel", "codexUsage", "codexFast", "grokImagineImage", "grokImagineVideo"];
+export declare const CAPABILITY_FLAG_KEYS: readonly ["codexSearch", "kimiSearch", "codexImages", "codexImageEdits", "codexImagesAnyModel", "codexUsage", "codexFast", "grokImagineImage", "grokImagineVideo"];
 /** Conservative numeric limits persisted beside the flags. */
 export declare const CAPABILITY_LIMIT_KEYS: readonly ["searchResults", "imageCount", "videoArtifactTtlMs"];
 /** Every key the controller admits into secret-free state. */
-export declare const CAPABILITY_SETTINGS_KEYS: readonly ["codexSearch", "codexImages", "codexImageEdits", "codexImagesAnyModel", "codexUsage", "codexFast", "grokImagineImage", "grokImagineVideo", "searchResults", "imageCount", "videoArtifactTtlMs"];
+export declare const CAPABILITY_SETTINGS_KEYS: readonly ["codexSearch", "kimiSearch", "codexImages", "codexImageEdits", "codexImagesAnyModel", "codexUsage", "codexFast", "grokImagineImage", "grokImagineVideo", "searchResults", "imageCount", "videoArtifactTtlMs"];
 export type CapabilityFlagKey = (typeof CAPABILITY_FLAG_KEYS)[number];
 export type CapabilityLimitKey = (typeof CAPABILITY_LIMIT_KEYS)[number];
 export type CapabilitySettingsKey = (typeof CAPABILITY_SETTINGS_KEYS)[number];
 /** Resolved, secret-free capability section. */
 export interface CapabilitySettings {
     readonly codexSearch: boolean;
+    /** Kimi Code subscription search (`/coding/v1/search`). */
+    readonly kimiSearch: boolean;
     readonly codexImages: boolean;
     readonly codexImageEdits: boolean;
     /** Allow non-Codex-route models to use the Codex image generate/edit tools. */
@@ -62,6 +64,7 @@ export declare const DEFAULT_CAPABILITY_SETTINGS: CapabilitySettings;
  */
 export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<NoInfer<{
     codexSearch: Schema<boolean, boolean, "defined">;
+    kimiSearch: Schema<boolean, boolean, "defined">;
     codexImages: Schema<boolean, boolean, "defined">;
     codexImageEdits: Schema<boolean, boolean, "defined">;
     codexImagesAnyModel: Schema<boolean, boolean, "defined">;
@@ -74,6 +77,7 @@ export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<NoInfe
     videoArtifactTtlMs: Schema<number, number, "defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
     codexSearch: Schema<boolean, boolean, "defined">;
+    kimiSearch: Schema<boolean, boolean, "defined">;
     codexImages: Schema<boolean, boolean, "defined">;
     codexImageEdits: Schema<boolean, boolean, "defined">;
     codexImagesAnyModel: Schema<boolean, boolean, "defined">;
@@ -88,6 +92,7 @@ export declare const CapabilitySettingsSchema: Schema<Schemastery.ObjectS<NoInfe
 /** Serialized schema metadata consumed by Settings UI tests and diagnostics. */
 export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS<NoInfer<{
     codexSearch: Schema<boolean, boolean, "defined">;
+    kimiSearch: Schema<boolean, boolean, "defined">;
     codexImages: Schema<boolean, boolean, "defined">;
     codexImageEdits: Schema<boolean, boolean, "defined">;
     codexImagesAnyModel: Schema<boolean, boolean, "defined">;
@@ -100,6 +105,7 @@ export declare const CAPABILITY_SETTINGS_SCHEMA_JSON: Schema<Schemastery.ObjectS
     videoArtifactTtlMs: Schema<number, number, "defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
     codexSearch: Schema<boolean, boolean, "defined">;
+    kimiSearch: Schema<boolean, boolean, "defined">;
     codexImages: Schema<boolean, boolean, "defined">;
     codexImageEdits: Schema<boolean, boolean, "defined">;
     codexImagesAnyModel: Schema<boolean, boolean, "defined">;

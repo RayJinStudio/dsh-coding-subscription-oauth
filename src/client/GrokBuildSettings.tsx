@@ -8,6 +8,7 @@ import { AboutTab } from "./components/AboutTab.tsx";
 import { AccountsTab } from "./components/AccountsTab.tsx";
 import { CapabilitiesTab } from "./components/CapabilitiesTab.tsx";
 import { GatewayTab } from "./components/GatewayTab.tsx";
+import { SearchTab } from "./components/SearchTab.tsx";
 import type { SettingsTabHint } from "./components/SettingsTabs.tsx";
 import { SettingsTabs } from "./components/SettingsTabs.tsx";
 import {
@@ -667,9 +668,9 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 		}
 	};
 
-	const openAccountsForCodex = (): void => {
+	const openAccountsFor = (provider: "codex" | "kimi"): void => {
 		setActiveTab("accounts");
-		window.setTimeout(() => document.getElementById("coding-oauth-login-codex")?.focus(), 0);
+		window.setTimeout(() => document.getElementById(`coding-oauth-login-${provider}`)?.focus(), 0);
 	};
 
 	const focusCapabilityDependency = (target: "codexImages" | "imagineCredential"): void => {
@@ -677,7 +678,7 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 		document.getElementById(id)?.focus();
 	};
 
-	const renderCapabilities = (scope?: "codex" | "grok") => (
+	const renderCapabilities = (scope?: "codex" | "kimi" | "grok") => (
 		<CapabilitiesTab
 			scope={scope}
 			t={t}
@@ -687,11 +688,12 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 			imagine={imagine}
 			imagineError={imagineError}
 			codexSignedIn={status?.providers.codex.status === "signed-in"}
+			kimiSignedIn={status?.providers.kimi.status === "signed-in"}
 			onRetry={() => {
 				void refreshCapabilities();
 				void refreshImagine();
 			}}
-			onOpenAccounts={openAccountsForCodex}
+			onOpenAccounts={openAccountsFor}
 			onFocusDependency={focusCapabilityDependency}
 			onPatchCapability={(key, value) => patchCapability(key, value)}
 		/>
@@ -855,6 +857,7 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 						}}
 					/>
 				) : null}
+				{activeTab === "search" ? <SearchTab t={t} /> : null}
 				{activeTab === "about" ? <AboutTab t={t} /> : null}
 			</div>
 		</section>

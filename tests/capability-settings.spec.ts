@@ -156,6 +156,7 @@ describe("capability settings schema", () => {
 		expect(normalizeCapabilitySettings({})).toEqual(DEFAULT_CAPABILITY_SETTINGS);
 		expect(capabilityFlags(DEFAULT_CAPABILITY_SETTINGS)).toEqual({
 			codexSearch: false,
+			kimiSearch: false,
 			codexImages: false,
 			codexImageEdits: false,
 			codexImagesAnyModel: false,

@@ -16,12 +16,22 @@ import {
 	normalizeCapabilitySettingsPatch,
 } from "./capability-settings.ts";
 import { readJsonRequest, requestErrorStatus } from "./http-json.ts";
-import { CAPABILITY_SETTINGS_PATH, CODEX_USAGE_PATH, IMAGINE_CREDENTIAL_STATUS_PATH } from "./ids.ts";
+import {
+	CAPABILITY_SETTINGS_PATH,
+	CODEX_USAGE_PATH,
+	IMAGINE_CREDENTIAL_STATUS_PATH,
+	SEARCH_PROVIDER_PATH,
+} from "./ids.ts";
 import { safeMessage } from "./redact.ts";
 import { LOOPBACK_OWNER_REQUEST_POLICY, type OwnerRequestPolicy } from "./web-origin.ts";
 import { registerWebRouteSetupAtomically } from "./web-routes.ts";
 
-export { CAPABILITY_SETTINGS_PATH, CODEX_USAGE_PATH, IMAGINE_CREDENTIAL_STATUS_PATH } from "./ids.ts";
+export {
+	CAPABILITY_SETTINGS_PATH,
+	CODEX_USAGE_PATH,
+	IMAGINE_CREDENTIAL_STATUS_PATH,
+	SEARCH_PROVIDER_PATH,
+} from "./ids.ts";
 
 /** Structural `ctx.webServer` + `ctx.effect` surface used by the registrar. */
 export interface CapabilityRouteContext {
@@ -54,7 +64,15 @@ export interface CapabilityRouteOptions {
 	readonly controller: CapabilityRouteController;
 	readonly usage?: () => unknown | Promise<unknown>;
 	readonly credentialInfo?: () => unknown | Promise<unknown>;
+	/** Read or change the pinned DSH web search provider. */
+	readonly searchProvider?: SearchProviderRouteSurface | undefined;
 	readonly ownerRequestPolicy?: OwnerRequestPolicy;
+}
+
+/** Minimal surface the search-provider route needs from the settings helper. */
+export interface SearchProviderRouteSurface {
+	snapshot(): unknown;
+	select(value: unknown): Promise<unknown>;
 }
 
 class CapabilityRouteRequestError extends Error {
@@ -69,7 +87,7 @@ class CapabilityRouteRequestError extends Error {
 
 /** Register the plugin-owned capability routes. Owns and returns the route disposer. */
 export function registerCapabilityRoutes(ctx: CapabilityRouteContext, options: CapabilityRouteOptions): () => void {
-	const { controller, usage, credentialInfo } = options;
+	const { controller, usage, credentialInfo, searchProvider } = options;
 	const ownerRequestPolicy = options.ownerRequestPolicy ?? LOOPBACK_OWNER_REQUEST_POLICY;
 	let dispose = (): void => undefined;
 	ctx.effect(() => {
@@ -79,6 +97,13 @@ export function registerCapabilityRoutes(ctx: CapabilityRouteContext, options: C
 				path: CAPABILITY_SETTINGS_PATH,
 				handler: (req, res) => handleCapabilities(req, res, controller, ownerRequestPolicy),
 			});
+			if (searchProvider !== undefined) {
+				webServer.register({
+					kind: "exact",
+					path: SEARCH_PROVIDER_PATH,
+					handler: (req, res) => handleSearchProvider(req, res, searchProvider, ownerRequestPolicy),
+				});
+			}
 			if (usage !== undefined) {
 				webServer.register({
 					kind: "exact",
@@ -127,6 +152,41 @@ async function handleCapabilities(
 		}
 		const { expectedRevision, payload } = readWriteEnvelope(body, "value");
 		json(res, 200, await controller.replace(admitCapabilitySection(payload, "value"), expectedRevision));
+	} catch (error: unknown) {
+		const status = statusFor(error);
+		json(res, status, errorBody(error, status));
+	}
+}
+
+/**
+ * Read the pinned search provider or pin a different one. The write travels
+ * through DSH's config editor, which owns the profile patch file lock.
+ */
+async function handleSearchProvider(
+	req: IncomingMessage,
+	res: ServerResponse,
+	searchProvider: SearchProviderRouteSurface,
+	ownerRequestPolicy: OwnerRequestPolicy,
+): Promise<void> {
+	const method = req.method ?? "";
+	if (method !== "GET" && method !== "PATCH") {
+		json(res, 405, { error: "method not allowed" });
+		return;
+	}
+	if (!ownerRequestPolicy.authorize(req).authorized) {
+		json(res, 403, { error: "forbidden" });
+		return;
+	}
+	try {
+		if (method === "GET") {
+			json(res, 200, searchProvider.snapshot());
+			return;
+		}
+		const body = await readJsonRequest(req);
+		if (!isPlainObject(body) || typeof body["searchProvider"] !== "string") {
+			throw new CapabilityRouteRequestError(400, "searchProvider must be a string");
+		}
+		json(res, 200, await searchProvider.select(body["searchProvider"]));
 	} catch (error: unknown) {
 		const status = statusFor(error);
 		json(res, status, errorBody(error, status));

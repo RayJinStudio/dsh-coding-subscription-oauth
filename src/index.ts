@@ -66,6 +66,7 @@ import {
 	XAI_PI_PROVIDER,
 } from "./ids.ts";
 import { registerImagineRoutes } from "./imagine-routes.ts";
+import { createKimiSearchProvider } from "./kimi-search.ts";
 import { createKimiUsageReader, kimiAuthFromSession } from "./kimi-usage.ts";
 import { MediaStore } from "./media-store.ts";
 import {
@@ -84,6 +85,11 @@ import {
 } from "./opencode-go-connection.ts";
 import { installOpenCodeGoHeaderCompatibility, OpenCodeGoHeaderState } from "./opencode-go-header.ts";
 import { acquireCodingOAuthProxy } from "./proxy.ts";
+import {
+	createSearchProviderSettings,
+	type SearchProviderConfigEditor,
+	type SearchProviderRegistry,
+} from "./search-provider-settings.ts";
 import { GrokBuildSession } from "./session.ts";
 import { GrokBuildCredentialStore, type OAuthCredentialFileStore } from "./store.ts";
 import { createOwnerRequestPolicy, safeguardOwnerRequestPolicy } from "./web-origin.ts";
@@ -664,10 +670,17 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		registerOpenCodeGoConnectionRoute(goCtx, goController, ownerRequestPolicy);
 	});
 
+	// The DSH config editor is absent in profiles without a loader-owned patch,
+	// so the search-provider surface reports itself read-only instead of guessing.
+	const searchProviderSettings = createSearchProviderSettings({
+		configEditor: () => ctx.get("configEditor") as SearchProviderConfigEditor | undefined,
+		web: () => ctx.get("web") as SearchProviderRegistry | undefined,
+	});
 	registerCapabilityRoutes(ctx, {
 		controller: capabilityRoutesController,
 		usage: () => usage.read(),
 		credentialInfo: () => describeImagineCredential(ctx.get("credentials") as CredentialProvider | undefined),
+		searchProvider: searchProviderSettings,
 		ownerRequestPolicy,
 	});
 	registerGatewayRoutes(ctx, gateway, ownerRequestPolicy);
@@ -700,9 +713,13 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		// first visible Codex model after plugin startup.
 		model: () => codex.visibleModels()[0]?.id ?? "",
 	});
+	// Kimi's /coding/v1/search takes only `text_query` (no model), so this
+	// provider carries no model selector, unlike the Codex one above.
+	const kimiSearch = createKimiSearchProvider({ auth: kimiAuth });
 	ctx.inject(["web"], (webCtx) => {
 		const web = webCtx.get("web") as CapabilitySearchRegistry;
 		webCtx.effect(() => bindCapabilitySearch(runtime, web, search), "dsh-coding-subscription-oauth: Codex search");
+		webCtx.effect(() => bindCapabilitySearch(runtime, web, kimiSearch), "dsh-coding-subscription-oauth: Kimi search");
 	});
 
 	ctx.inject(["tools", "attachments", "credentials", "webServer"], async (toolCtx) => {

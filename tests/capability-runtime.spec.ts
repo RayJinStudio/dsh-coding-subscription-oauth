@@ -11,6 +11,7 @@ import {
 	type CapabilityToolRegistry,
 	capabilityToolEnabled,
 	type ReplaceableAdapterRegistration,
+	type SubscriptionSearchProvider,
 } from "../src/capability-runtime.ts";
 import { type CapabilitySettings, DEFAULT_CAPABILITY_SETTINGS } from "../src/capability-settings.ts";
 import { CODEX_IMAGE_EDIT_TOOL, CODEX_IMAGE_GENERATE_TOOL } from "../src/capability-tools.ts";
@@ -27,6 +28,7 @@ import {
 	GROK_IMAGINE_VIDEO_TOOL,
 } from "../src/grok-imagine.ts";
 import { CODEX_OAUTH_FAST_ROUTE, CODING_OAUTH_ROUTES } from "../src/ids.ts";
+import { KIMI_SEARCH_PROVIDER_ID } from "../src/kimi-search.ts";
 
 const DEFAULT_ROUTES = [...CODING_OAUTH_ROUTES];
 const FAST_ROUTES = [...CODING_OAUTH_ROUTES, CODEX_OAUTH_FAST_ROUTE];
@@ -62,11 +64,11 @@ function fakeTool(name: string): ToolDefinition {
 }
 
 class FakeSearchRegistry implements CapabilitySearchRegistry {
-	readonly providers: CodexSearchProvider[] = [];
+	readonly providers: SubscriptionSearchProvider[] = [];
 	registerCount = 0;
 	unregisterCount = 0;
 
-	registerSearchProvider(provider: CodexSearchProvider): () => void {
+	registerSearchProvider(provider: SubscriptionSearchProvider): () => void {
 		this.registerCount += 1;
 		this.providers.push(provider);
 		let released = false;
@@ -79,7 +81,7 @@ class FakeSearchRegistry implements CapabilitySearchRegistry {
 		};
 	}
 
-	get current(): CodexSearchProvider | undefined {
+	get current(): SubscriptionSearchProvider | undefined {
 		return this.providers[0];
 	}
 }
@@ -313,6 +315,47 @@ describe("bindCapabilitySearch", () => {
 		state.set(settings({ codexSearch: false }));
 		state.set(settings({ codexSearch: true }));
 		expect(registry.registerCount).toBe(1);
+	});
+
+	it("gates the Kimi provider on its own flag, independently of the Codex one", async () => {
+		const state = new CapabilityRuntimeState();
+		const registry = new FakeSearchRegistry();
+		const innerSearch = vi.fn(async () => ({ sources: [], truncated: false }));
+		const dispose = bindCapabilitySearch(state, registry, {
+			id: KIMI_SEARCH_PROVIDER_ID,
+			available: () => true,
+			search: innerSearch,
+		});
+		expect(registry.registerCount).toBe(0);
+		// Enabling the Codex flag must not publish the Kimi provider.
+		state.set(settings({ codexSearch: true }));
+		expect(registry.registerCount).toBe(0);
+		state.set(settings({ codexSearch: true, kimiSearch: true }));
+		expect(registry.registerCount).toBe(1);
+		await registry.current?.search({ query: "dsh" });
+		expect(innerSearch).toHaveBeenCalledTimes(1);
+		state.set(settings({ codexSearch: true, kimiSearch: false }));
+		expect(registry.unregisterCount).toBe(1);
+		await expect(registry.current).toBeUndefined();
+		dispose();
+	});
+
+	it("reports the Kimi owner when a disabled Kimi provider is executed", async () => {
+		const state = new CapabilityRuntimeState();
+		const registry = new FakeSearchRegistry();
+		const dispose = bindCapabilitySearch(state, registry, {
+			id: KIMI_SEARCH_PROVIDER_ID,
+			available: () => true,
+			search: async () => ({ sources: [], truncated: false }),
+		});
+		state.set(settings({ kimiSearch: true }));
+		const gated = registry.current;
+		state.set(settings({ kimiSearch: false }));
+		await expect(gated?.search({ query: "dsh" })).rejects.toMatchObject({
+			code: "INVALID_ARGS",
+			message: "Kimi search is disabled",
+		});
+		dispose();
 	});
 });
 

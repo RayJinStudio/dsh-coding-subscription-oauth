@@ -47,7 +47,7 @@ function IndependentSettingsEntry({
 	useEffect(() => {
 		const openTarget = (event: Event) => {
 			const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
-			if (!tab || !["accounts", "providers", "capabilities", "gateway"].includes(tab)) return;
+			if (!tab || !["accounts", "providers", "capabilities", "gateway", "search"].includes(tab)) return;
 			if (document.querySelector("[data-dsh-coding-oauth=management]")) return;
 			previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 			setTargetTab(tab === "providers" ? "accounts" : (tab as SettingsTabId));

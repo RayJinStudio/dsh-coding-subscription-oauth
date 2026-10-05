@@ -191,6 +191,45 @@ describe("plugin startup catalog initialization", () => {
 		expect(registerSearchProvider).toHaveBeenCalledOnce();
 	});
 
+	it("registers both subscription search providers with independent capability flags", async () => {
+		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockResolvedValue(undefined);
+		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels").mockResolvedValue(undefined);
+		vi.spyOn(GrokBuildSession.prototype, "refreshLiveCatalog").mockResolvedValue(undefined);
+		const registration = Object.assign(vi.fn(), { replace: vi.fn() });
+		const registered: string[] = [];
+		const registerSearchProvider = vi.fn((provider: { readonly id: string }) => {
+			registered.push(provider.id);
+			return vi.fn();
+		});
+		const requiredWeb = requiredWebContext();
+		const child = {
+			get: vi.fn((name: string) => (name === "web" ? { registerSearchProvider } : undefined)),
+			effect: vi.fn((setup: () => unknown) => setup()),
+		};
+		const context = {
+			webServer: requiredWeb.webServer,
+			logger: () => ({ warn: vi.fn() }),
+			emit: vi.fn(),
+			effect: vi.fn((setup: () => unknown) => setup()),
+			llm: { registerAdapter: vi.fn(() => registration) },
+			get: vi.fn(() => undefined),
+			inject: vi.fn((services: readonly string[], callback: (ctx: unknown) => void) => {
+				if (services.length === 0) return runFiber(() => callback(context));
+				if (services.length === 1 && services[0] === "llm") return runFiber(() => callback(context));
+				if (services.length === 1 && services[0] === "web") return runFiber(() => callback(child));
+				if (services.length === 1 && services[0] === "webServer") return runFiber(() => callback(requiredWeb));
+				return runFiber();
+			}),
+		} as unknown as Context;
+
+		apply(context, { capabilities: { codexSearch: true, kimiSearch: true, searchResults: 3 } });
+		await new Promise<void>((resolve) => setImmediate(resolve));
+
+		// Two distinct provider ids, one per subscription, both published.
+		expect(registerSearchProvider).toHaveBeenCalledTimes(2);
+		expect([...registered].sort()).toEqual(["codex-oauth-search", "kimi-oauth-search"]);
+	});
+
 	it("releases an obsolete settings watcher before reinjection and restores composition defaults on dispose", async () => {
 		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockResolvedValue(undefined);
 		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels").mockResolvedValue(undefined);

@@ -16,6 +16,7 @@ export { CAPABILITY_SETTINGS_NAMESPACE } from "./ids.ts";
 /** Default-off capability flags. Presence in the user section marks an override. */
 export const CAPABILITY_FLAG_KEYS = [
 	"codexSearch",
+	"kimiSearch",
 	"codexImages",
 	"codexImageEdits",
 	"codexImagesAnyModel",
@@ -38,6 +39,8 @@ export type CapabilitySettingsKey = (typeof CAPABILITY_SETTINGS_KEYS)[number];
 /** Resolved, secret-free capability section. */
 export interface CapabilitySettings {
 	readonly codexSearch: boolean;
+	/** Kimi Code subscription search (`/coding/v1/search`). */
+	readonly kimiSearch: boolean;
 	readonly codexImages: boolean;
 	readonly codexImageEdits: boolean;
 	/** Allow non-Codex-route models to use the Codex image generate/edit tools. */
@@ -68,6 +71,7 @@ export const CAPABILITY_SETTINGS_BOUNDS = {
 /** Schema defaults: every flag off, every limit at its conservative default. */
 export const DEFAULT_CAPABILITY_SETTINGS: CapabilitySettings = Object.freeze({
 	codexSearch: false,
+	kimiSearch: false,
 	codexImages: false,
 	codexImageEdits: false,
 	codexImagesAnyModel: false,
@@ -86,6 +90,7 @@ export const DEFAULT_CAPABILITY_SETTINGS: CapabilitySettings = Object.freeze({
  */
 export const CapabilitySettingsSchema = Schema.object({
 	codexSearch: Schema.boolean().default(false),
+	kimiSearch: Schema.boolean().default(false),
 	codexImages: Schema.boolean().default(false),
 	codexImageEdits: Schema.boolean().default(false),
 	codexImagesAnyModel: Schema.boolean().default(false),
@@ -269,6 +274,7 @@ export function isCapabilitySettingsReadOnlyError(error: unknown): error is Capa
 export function capabilityFlags(settings: CapabilitySettings): Pick<CapabilitySettings, CapabilityFlagKey> {
 	return {
 		codexSearch: settings.codexSearch,
+		kimiSearch: settings.kimiSearch,
 		codexImages: settings.codexImages,
 		codexImageEdits: settings.codexImageEdits,
 		codexImagesAnyModel: settings.codexImagesAnyModel,
@@ -309,6 +315,7 @@ export function normalizeCapabilitySettings(input?: unknown): CapabilitySettings
 	const codexImages = patch.codexImages ?? DEFAULT_CAPABILITY_SETTINGS.codexImages;
 	return Object.freeze({
 		codexSearch: patch.codexSearch ?? DEFAULT_CAPABILITY_SETTINGS.codexSearch,
+		kimiSearch: patch.kimiSearch ?? DEFAULT_CAPABILITY_SETTINGS.kimiSearch,
 		codexImages,
 		codexImageEdits: patch.codexImageEdits ?? DEFAULT_CAPABILITY_SETTINGS.codexImageEdits,
 		// any-model is meaningless without images; clear at admit so UI cascade alone cannot leave it on
@@ -333,6 +340,7 @@ export function normalizeCapabilitySettingsPatch(input?: unknown): CapabilitySet
 	if (!isPlainObject(input)) return {};
 	const patch: {
 		codexSearch?: boolean;
+		kimiSearch?: boolean;
 		codexImages?: boolean;
 		codexImageEdits?: boolean;
 		codexImagesAnyModel?: boolean;
@@ -346,6 +354,7 @@ export function normalizeCapabilitySettingsPatch(input?: unknown): CapabilitySet
 	} = {};
 	const flags = input as Record<string, unknown>;
 	assignFlag(patch, "codexSearch", flags["codexSearch"]);
+	assignFlag(patch, "kimiSearch", flags["kimiSearch"]);
 	assignFlag(patch, "codexImages", flags["codexImages"]);
 	assignFlag(patch, "codexImageEdits", flags["codexImageEdits"]);
 	assignFlag(patch, "codexImagesAnyModel", flags["codexImagesAnyModel"]);

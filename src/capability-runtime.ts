@@ -15,9 +15,10 @@ import {
 } from "./capability-settings.ts";
 import { CODEX_IMAGE_EDIT_TOOL, CODEX_IMAGE_GENERATE_TOOL } from "./capability-tools.ts";
 import type { CodexModelCapabilities } from "./codex-model-capabilities.ts";
-import type { CodexSearchProvider, CodexSearchRequest, CodexSearchResult } from "./codex-search.ts";
+import type { CodexSearchRequest } from "./codex-search.ts";
 import { GROK_IMAGINE_IMAGE_TOOL, GROK_IMAGINE_VIDEO_STATUS_TOOL, GROK_IMAGINE_VIDEO_TOOL } from "./grok-imagine.ts";
 import { CODEX_OAUTH_FAST_ROUTE, CODING_OAUTH_ROUTES } from "./ids.ts";
+import { KIMI_SEARCH_PROVIDER_ID } from "./kimi-search.ts";
 
 export type CapabilityRuntimeListener = (settings: CapabilitySettings) => void | Promise<void>;
 
@@ -85,25 +86,57 @@ export class CapabilityRuntimeState {
 	}
 }
 
-export interface CapabilitySearchRegistry {
-	registerSearchProvider(provider: CodexSearchProvider): () => void;
+/**
+ * Structural `WebSearchProvider` shared by every subscription search provider,
+ * so one binding serves both without this module importing `dsh-web` and
+ * without naming either provider's concrete result type.
+ */
+export interface SubscriptionSearchProvider {
+	readonly id: string;
+	available(): boolean;
+	search(
+		request: { readonly query: string; readonly maxResults?: number },
+		signal?: AbortSignal,
+	): Promise<{ readonly sources: readonly { readonly url: string }[]; readonly truncated: boolean }>;
 }
 
-/** Dynamically expose search and clamp every request to the live result limit. */
+export interface CapabilitySearchRegistry {
+	registerSearchProvider(provider: SubscriptionSearchProvider): () => void;
+}
+
+/**
+ * The capability flag that owns each search provider. Both providers share the
+ * registration lifecycle, but each is published only while its own flag is on.
+ */
+function searchFlagFor(providerId: string): "codexSearch" | "kimiSearch" {
+	return providerId === KIMI_SEARCH_PROVIDER_ID ? "kimiSearch" : "codexSearch";
+}
+
+/** Owner name used in the disabled-request failure message. */
+function searchLabelFor(providerId: string): string {
+	return providerId === KIMI_SEARCH_PROVIDER_ID ? "Kimi" : "Codex";
+}
+
+/**
+ * Dynamically expose one search provider behind its own capability flag,
+ * clamping every request to the live result limit.
+ */
 export function bindCapabilitySearch(
 	state: CapabilityRuntimeState,
 	registry: CapabilitySearchRegistry,
-	provider: CodexSearchProvider,
+	provider: SubscriptionSearchProvider,
 ): () => void {
+	const flag = searchFlagFor(provider.id);
+	const label = searchLabelFor(provider.id);
 	let release: (() => void) | undefined;
 	let disposed = false;
-	const gated: CodexSearchProvider = {
+	const gated: SubscriptionSearchProvider = {
 		id: provider.id,
-		available: () => state.current().codexSearch && provider.available(),
-		async search(request: CodexSearchRequest, signal?: AbortSignal): Promise<CodexSearchResult> {
+		available: () => state.current()[flag] && provider.available(),
+		async search(request: CodexSearchRequest, signal?: AbortSignal) {
 			const settings = state.current();
-			if (!settings.codexSearch) {
-				throw new LlmError("Codex search is disabled", "INVALID_ARGS");
+			if (!settings[flag]) {
+				throw new LlmError(`${label} search is disabled`, "INVALID_ARGS");
 			}
 			const requested = request.maxResults ?? settings.searchResults;
 			const maxResults = Math.min(requested, settings.searchResults);
@@ -112,11 +145,11 @@ export function bindCapabilitySearch(
 	};
 	const reconcile = (settings: CapabilitySettings): void => {
 		if (disposed) return;
-		if (settings.codexSearch && release === undefined) {
+		if (settings[flag] && release === undefined) {
 			release = registry.registerSearchProvider(gated);
 			return;
 		}
-		if (!settings.codexSearch && release !== undefined) {
+		if (!settings[flag] && release !== undefined) {
 			release();
 			release = undefined;
 		}
@@ -300,6 +333,7 @@ export function bindCodexFastRoute(
 function sameSettings(left: CapabilitySettings, right: CapabilitySettings): boolean {
 	return (
 		left.codexSearch === right.codexSearch &&
+		left.kimiSearch === right.kimiSearch &&
 		left.codexImages === right.codexImages &&
 		left.codexImageEdits === right.codexImageEdits &&
 		left.codexImagesAnyModel === right.codexImagesAnyModel &&

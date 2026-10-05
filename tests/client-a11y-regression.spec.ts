@@ -47,7 +47,7 @@ describe("client accessibility regressions", () => {
 			/if \(providerStatus\.status === "signed-in"\) \{\s+logoutTrigger\.current\?\.focus\(\);/u,
 		);
 		expect(providerCard).toContain(`document.getElementById(\`coding-oauth-login-${slugExpression}\`)?.focus();`);
-		expect(settings).toContain('document.getElementById("coding-oauth-login-codex")?.focus()');
+		expect(settings).toContain(`document.getElementById(\`coding-oauth-login-\${provider}\`)?.focus()`);
 		expect(opencodeGo).toContain('data-opencode-go-status={currentCall?.lastCall ?? "loading"}');
 		expect(opencodeGo).toContain('t("description")');
 	});
