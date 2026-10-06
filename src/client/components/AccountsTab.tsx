@@ -31,11 +31,14 @@ import { NoticeBanner } from "./NoticeBanner.tsx";
 import { OpenCodeGoCard } from "./OpenCodeGoCard.tsx";
 import { ProviderCard } from "./ProviderCard.tsx";
 import { ProviderIcon, type ProviderIconKind } from "./ProviderIcons.tsx";
+import { WorkBuddyCard } from "./WorkBuddyCard.tsx";
 
-export type ProviderFilterId = "opencodeGo" | ProviderSlug | "antigravity";
+export type ProviderFilterId = "opencodeGo" | ProviderSlug | "antigravity" | "workbuddy";
 
 export interface AccountsTabProps {
 	renderCapabilities?: ((scope: "codex" | "kimi" | "grok") => ReactNode) | undefined;
+	/** Whether the WorkBuddy route currently has a readable credential. */
+	workbuddySignedIn?: boolean | undefined;
 	onLoadCapabilities?: (() => void) | undefined;
 	onStartConversation?: (() => void) | undefined;
 	t: GrokBuildSettingsInjected["t"];
@@ -84,6 +87,7 @@ export interface AccountsTabProps {
 
 export function AccountsTab({
 	renderCapabilities,
+	workbuddySignedIn,
 	onLoadCapabilities,
 	onStartConversation,
 	t,
@@ -221,6 +225,15 @@ export function AccountsTab({
 			iconKind: "antigravity",
 			label: "Antigravity",
 			statusTone: status.antigravity.installed ? "success" : undefined,
+		},
+		{
+			// WorkBuddy is not an OAuth login of this plugin: it reuses the desktop
+			// app's sign-in, so its live state comes from the WorkBuddy route rather
+			// than from the shared account status document.
+			id: "workbuddy",
+			iconKind: "workbuddy",
+			label: "WorkBuddy",
+			statusTone: workbuddySignedIn ? "success" : undefined,
 		},
 	];
 
@@ -399,6 +412,7 @@ export function AccountsTab({
 						</Fragment>
 					);
 				})}
+				{selectedProvider === "workbuddy" ? <WorkBuddyCard t={t} onStartConversation={onStartConversation} /> : null}
 				{selectedProvider === "antigravity" ? (
 					<div style={cardStyle}>
 						<div style={rowStyle}>

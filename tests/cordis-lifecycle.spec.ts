@@ -2,6 +2,17 @@ import { Context, Service } from "@deepseek-ai/cordis";
 import { describe, expect, it } from "vitest";
 import { apply, inject, name } from "../src/index.ts";
 
+/**
+ * Every exact route the standalone plugin registers.
+ *
+ * Pinned as a number so an accidental route addition or removal is loud: the
+ * routes are an operator-visible surface, and this assertion is the only place
+ * that notices a silent change to it. Third-party optional routes (Codex Fast)
+ * are published by REPLACING the adapter route list, not the web routes, so
+ * they do not move this count.
+ */
+const EXPECTED_ROUTE_COUNT = 31;
+
 class TestWebServer extends Service {
 	readonly paths = new Set<string>();
 	constructor(ctx: Context) {
@@ -29,7 +40,10 @@ describe("Cordis webServer lifecycle", () => {
 		await fiber;
 		expect(webServer?.paths.size).toBeGreaterThan(0);
 		const initialPaths = [...webServer!.paths].sort();
-		expect(initialPaths).toHaveLength(28);
+		expect(initialPaths).toHaveLength(EXPECTED_ROUTE_COUNT);
+		expect(initialPaths).toContain("/plugins/dsh-grok-build/workbuddy/status");
+		expect(initialPaths).toContain("/plugins/dsh-grok-build/workbuddy/checkin");
+		expect(initialPaths).toContain("/plugins/dsh-grok-build/workbuddy/models");
 		await serviceFiber.dispose();
 		expect(webServer!.paths.size).toBe(0);
 		let replacement: TestWebServer | undefined;
@@ -39,7 +53,7 @@ describe("Cordis webServer lifecycle", () => {
 		await replacementFiber;
 		await fiber;
 		expect([...replacement!.paths].sort()).toEqual(initialPaths);
-		expect(replacement!.paths).toHaveLength(28);
+		expect(replacement!.paths).toHaveLength(EXPECTED_ROUTE_COUNT);
 		expect(root.registry.get(apply)?.fibers.length).toBe(1);
 		await replacementFiber.dispose();
 		expect(replacement?.paths.size).toBe(0);

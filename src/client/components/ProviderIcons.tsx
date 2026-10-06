@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export type ProviderIconKind = "opencodeGo" | "grok" | "codex" | "kimi" | "claude" | "antigravity";
+export type ProviderIconKind = "opencodeGo" | "grok" | "codex" | "kimi" | "claude" | "antigravity" | "workbuddy";
 
 export function ProviderIcon({
 	kind,
@@ -12,6 +12,19 @@ export function ProviderIcon({
 	style?: CSSProperties;
 }) {
 	switch (kind) {
+		case "workbuddy":
+			return (
+				<svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style} aria-hidden="true">
+					{/* A rounded "cloud buddy": the WorkBuddy mark is a stylised cloud. */}
+					<path
+						d="M7.5 19a4.5 4.5 0 0 1-.42-8.98 6 6 0 0 1 11.62-1.14A4.25 4.25 0 0 1 18.25 19H7.5Z"
+						stroke="currentColor"
+						strokeWidth="1.6"
+						strokeLinejoin="round"
+					/>
+					<path d="M9.5 12.75h5M12 10.25v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+				</svg>
+			);
 		case "opencodeGo":
 			return (
 				<svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style} aria-hidden="true">

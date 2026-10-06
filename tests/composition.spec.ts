@@ -2,7 +2,15 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLAUDE_CODE_OAUTH_ROUTE, CODEX_OAUTH_ROUTE, GROK_BUILD_ROUTE, KIMI_CODE_OAUTH_ROUTE } from "../src/ids.ts";
+import {
+	CLAUDE_CODE_OAUTH_ROUTE,
+	CODEX_OAUTH_ROUTE,
+	CODING_OAUTH_ALL_ROUTES,
+	GROK_BUILD_ROUTE,
+	KIMI_CODE_OAUTH_ROUTE,
+	WORKBUDDY_ROUTE,
+} from "../src/ids.ts";
+import { WORKBUDDY_PI_PROVIDER } from "../src/workbuddy-provider.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -22,9 +30,39 @@ describe("bundle composition", () => {
 			"kimi-code-oauth",
 			"claude-code-oauth",
 		]);
+		// The WorkBuddy route must NOT be the reference plugin's id. That plugin
+		// owns `workbuddy` and `workbuddy-global`, and `registerAdapter` is
+		// all-or-nothing, so sharing the id makes the two plugins mutually
+		// exclusive: one of them loses every route it owns and silently serves the
+		// other's catalog and wire path.
+		expect(WORKBUDDY_ROUTE).toBe("workbuddy-oauth");
+		expect([...CODING_OAUTH_ALL_ROUTES]).not.toContain("workbuddy");
+		expect([...CODING_OAUTH_ALL_ROUTES]).not.toContain("workbuddy-global");
+		expect([...CODING_OAUTH_ALL_ROUTES]).toContain(WORKBUDDY_ROUTE);
+		// pi-ai stamps `model.provider` with the provider id while the harness keys
+		// its profile map by the route, so the two must be one string.
+		expect(WORKBUDDY_PI_PROVIDER).toBe(WORKBUDDY_ROUTE);
 		const source = await readFile(join(root, "src/index.ts"), "utf8");
-		expect(source).toContain("[...CODING_OAUTH_ROUTES]");
+		// WorkBuddy is registered on the same adapter as the OAuth routes, so the
+		// list handed to `registerAdapter` must be the full one — the frozen core
+		// tuple plus WorkBuddy — or the WorkBuddy route never becomes reachable.
+		expect(source).toContain("[...CODING_OAUTH_ALL_ROUTES]");
 		expect(source).toContain("registerCodingOAuthRoutes");
+	});
+
+	it("registers its adapter tolerantly so a route conflict cannot disable the plugin", async () => {
+		// `ctx.llm.registerAdapter` is all-or-nothing: one route already owned by
+		// another plugin (the reference `dsh-connect-workbuddy` also registers
+		// `workbuddy`) throws DUPLICATE_ADAPTER and would withdraw this plugin's
+		// unrelated routes too, leaving every provider here broken while its own
+		// routes 404. Registration must therefore degrade to the routes it can hold.
+		const source = await readFile(join(root, "src/index.ts"), "utf8");
+		expect(source).toContain("registerOwnedRoutes(ctx, [...CODING_OAUTH_ALL_ROUTES]");
+		expect(source).toContain("DUPLICATE_ADAPTER");
+		expect(source).not.toContain("const adapterRegistration = ctx.llm.registerAdapter(");
+		// The Codex Fast reconciler replaces the whole route list, so it must bind to
+		// what was actually registered rather than the requested list.
+		expect(source).toContain("baseRoutes: registeredRoutes");
 	});
 
 	it("ships a v0.4 host bundle that matches the capability client", async () => {

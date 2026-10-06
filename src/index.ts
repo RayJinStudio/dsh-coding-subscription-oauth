@@ -60,7 +60,7 @@ import {
 import {
 	CLAUDE_PI_PROVIDER,
 	CODEX_PI_PROVIDER,
-	CODING_OAUTH_ROUTES,
+	CODING_OAUTH_ALL_ROUTES,
 	IMAGINE_MEDIA_STORE_DIRNAME,
 	KIMI_PI_PROVIDER,
 	XAI_PI_PROVIDER,
@@ -93,6 +93,10 @@ import {
 import { GrokBuildSession } from "./session.ts";
 import { GrokBuildCredentialStore, type OAuthCredentialFileStore } from "./store.ts";
 import { createOwnerRequestPolicy, safeguardOwnerRequestPolicy } from "./web-origin.ts";
+import { WorkBuddyCredentialStore } from "./workbuddy-auth.ts";
+import { registerWorkBuddyRoutes } from "./workbuddy-routes.ts";
+import { WorkBuddySession } from "./workbuddy-session.ts";
+import { refreshWorkBuddyToken } from "./workbuddy-upstream.ts";
 
 export type {
 	CodingOAuthParticipant,
@@ -248,6 +252,111 @@ export {
 	OWNER_CSRF_HEADER,
 	OWNER_PROOF_HEADER,
 } from "./web-origin.ts";
+export type { WorkBuddyEncryptedField } from "./workbuddy-at-rest.ts";
+export {
+	clearAtRestKeyCache,
+	deriveAtRestKey,
+	deriveAtRestKeyId,
+	fetchAtRestKeyPayload,
+	findWorkbuddyAppExecutable,
+	isEncryptedFieldWrapper,
+	openEncryptedField,
+	readAtRestKey,
+	WORKBUDDY_APP_EXECUTABLE_ENV,
+	workbuddyAppExecutableCandidates,
+} from "./workbuddy-at-rest.ts";
+export type {
+	WorkBuddyAccountChoice,
+	WorkBuddyAuthDiagnosis,
+	WorkBuddyAuthStatus,
+	WorkBuddyCandidateFailure,
+	WorkBuddyCandidateReason,
+	WorkBuddyCredential,
+	WorkBuddyRefreshOutcome,
+	WorkBuddyRegion,
+	WorkBuddyStoreOptions,
+} from "./workbuddy-auth.ts";
+/** WorkBuddy: an LLM route backed by the WorkBuddy desktop app's own sign-in. */
+export {
+	authFileName,
+	defaultDesktopAuthCandidates,
+	defaultDesktopAuthDirs,
+	ENCRYPTED_CREDENTIAL_CODE,
+	expiryToMs,
+	hasEncryptedCredentialFields,
+	isWorkBuddyEncryptedCredentialError,
+	legacyWorkbuddyOwnAuthPath,
+	parseWorkBuddyAuth,
+	WORKBUDDY_AUTH_FILE_ENV,
+	WORKBUDDY_AUTH_FILENAME,
+	WorkBuddyCredentialStore,
+	WorkBuddyEncryptedCredentialError,
+	workbuddyAccountId,
+	workbuddyCredentialKey,
+	workbuddyOwnAuthPath,
+	workbuddyRegionOf,
+} from "./workbuddy-auth.ts";
+export {
+	FALLBACK_WORKBUDDY_MODELS,
+	WORKBUDDY_DISPLAY_NAME,
+	WORKBUDDY_IMAGE_BUDGETS,
+	WORKBUDDY_NATIVE_MODALITY,
+	WORKBUDDY_PI_PROVIDER,
+	WORKBUDDY_STREAM_IDLE_TIMEOUT_MS,
+	withWorkBuddyWire,
+	workbuddyDisplayName,
+	workbuddyModelTakesImages,
+	workbuddyPiModel,
+	workbuddyProvider,
+	workbuddyThinkingLevelMap,
+} from "./workbuddy-provider.ts";
+export type { WorkBuddyModelView, WorkBuddyRouteSurface, WorkBuddyView } from "./workbuddy-routes.ts";
+export {
+	createWorkBuddyRouteSurface,
+	registerWorkBuddyRoutes,
+	WORKBUDDY_CHECKIN_PATH,
+	WORKBUDDY_MODELS_PATH,
+	WORKBUDDY_STATUS_PATH,
+} from "./workbuddy-routes.ts";
+export type { WorkBuddyCatalogSource, WorkBuddyContextBudget } from "./workbuddy-session.ts";
+export { WORKBUDDY_MODELS_CACHE_FILENAME, WorkBuddySession, workbuddyModelsCachePath } from "./workbuddy-session.ts";
+export type {
+	WorkBuddyCheckinClaim,
+	WorkBuddyCheckinStatus,
+	WorkBuddyCreditPackage,
+	WorkBuddyCredits,
+	WorkBuddyErrorKind,
+	WorkBuddyModelInfo,
+	WorkBuddyReasoning,
+} from "./workbuddy-upstream.ts";
+export {
+	claimWorkBuddyCheckin,
+	classifyWorkBuddyError,
+	fetchWorkBuddyCatalog,
+	fetchWorkBuddyCheckinStatus,
+	fetchWorkBuddyCredits,
+	parseWorkBuddyCreditMultiplier,
+	parseWorkBuddyModel,
+	parseWorkBuddyReasoning,
+	prepareWorkBuddyChatBody,
+	refreshWorkBuddyToken,
+	selectWorkBuddyRoster,
+	WORKBUDDY_CHAT_PATH,
+	WORKBUDDY_CHECKIN_CLAIM_PATH,
+	WORKBUDDY_CHECKIN_STATUS_PATH,
+	WORKBUDDY_CREDITS_PATH,
+	WORKBUDDY_FALLBACK_SYSTEM_PROMPT,
+	WORKBUDDY_REFRESH_PATH,
+	WorkBuddyUpstreamError,
+	workbuddyBillingBase,
+	workbuddyBillingHeaders,
+	workbuddyChatBase,
+	workbuddyChatHeaders,
+	workbuddyCheckinSupported,
+	workbuddyGlobalBase,
+	workbuddyModelHeaders,
+	workbuddyRefreshHeaders,
+} from "./workbuddy-upstream.ts";
 
 /** Stable Cordis plugin name. */
 export const name = "llm-grok-build-oauth";
@@ -537,6 +646,13 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 				notifyCatalogChange();
 			}),
 	);
+	// WorkBuddy reuses the desktop app's sign-in instead of running an OAuth flow,
+	// so it owns a credential store rather than an OAuthProviderSession, and its
+	// token refresh goes straight to the gateway the credential's region names.
+	const workbuddy = new WorkBuddySession(
+		new WorkBuddyCredentialStore({ refresh: (credential) => refreshWorkBuddyToken(credential) }),
+		notifyCatalogChange,
+	);
 	const codex = requireSubscription(subscriptions, CODEX_PI_PROVIDER);
 	const kimi = requireSubscription(subscriptions, KIMI_PI_PROVIDER);
 	const opencodeGo = new OpenCodeGoHeaderState();
@@ -552,17 +668,44 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		runtime.refresh();
 	};
 
-	void Promise.allSettled([grok.loadCachedCatalog(), ...subscriptions.map((session) => session.loadCachedModels())])
+	// Containment is per provider, but the ORDERING is deliberate: the cached
+	// selection and budgets must be loaded BEFORE any roster is fetched, because
+	// what is fetched is filtered and budgeted by that state. Starting these
+	// eagerly here would race the cache load.
+	const containGrokRefresh = (): Promise<void> =>
+		grok.refreshLiveCatalog().then(
+			() => undefined,
+			() => {
+				if (active) logger.warn("background OAuth model catalog initialization failed; using static fallbacks");
+			},
+		);
+	const containWorkBuddyRefresh = (): Promise<void> =>
+		workbuddy.refreshCatalog().then(
+			() => undefined,
+			() => {
+				if (active) {
+					logger.warn("background WorkBuddy model catalog initialization failed; using the baseline");
+				}
+			},
+		);
+	void Promise.allSettled([
+		grok.loadCachedCatalog(),
+		workbuddy.loadCachedState(),
+		...subscriptions.map((session) => session.loadCachedModels()),
+	])
 		.then(async (results) => {
 			if (!active) return;
 			if (results.some((result) => result.status === "rejected")) {
 				logger.warn("one or more OAuth model caches could not be loaded; using in-memory fallbacks");
 			}
-			await grok.refreshLiveCatalog();
+			// Each refresh contains its own failure, so one provider's outage can
+			// neither abort the other nor be reported under the other's name.
+			await containGrokRefresh();
+			await containWorkBuddyRefresh();
 		})
 		.catch(() => {
-			// Contain every startup refresh failure so plugin activation cannot leave
-			// an unhandled rejection. The static provider catalogs remain usable.
+			// The final backstop: a failure raised by the cache loaders themselves
+			// must not leave plugin activation with an unhandled rejection.
 			if (active) logger.warn("background OAuth model catalog initialization failed; using static fallbacks");
 		});
 
@@ -684,6 +827,11 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		ownerRequestPolicy,
 	});
 	registerGatewayRoutes(ctx, gateway, ownerRequestPolicy);
+	registerWorkBuddyRoutes(ctx, {
+		session: workbuddy,
+		store: workbuddy.store,
+		ownerRequestPolicy,
+	});
 	registerCodingOAuthRoutes(
 		ctx,
 		grok,
@@ -799,18 +947,102 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	// Only adapters and LLM-backed model resolution depend on this service. Its
 	// child fiber may unload and reload without disturbing OAuth/Web ownership.
 	ctx.inject(["llm"], (llmCtx) =>
-		applyOwnedLlm(llmCtx, config, { grok, subscriptions, runtime, codexAuth, codexModels, opencodeGo, logger }),
+		applyOwnedLlm(llmCtx, config, {
+			grok,
+			subscriptions,
+			workbuddy,
+			runtime,
+			codexAuth,
+			codexModels,
+			opencodeGo,
+			logger,
+		}),
 	);
 }
 
 interface OwnedLlmDependencies {
 	readonly grok: GrokBuildSession;
 	readonly subscriptions: readonly OAuthProviderSession[];
+	readonly workbuddy: WorkBuddySession;
 	readonly runtime: CapabilityRuntimeState;
 	readonly codexAuth: ReturnType<typeof codexAuthFromSession>;
 	readonly codexModels: ReturnType<typeof createCodexModelCapabilities>;
 	readonly opencodeGo: OpenCodeGoHeaderState;
 	readonly logger: ReturnType<Context["logger"]>;
+}
+
+/**
+ * `registerAdapter` for a route list that may collide with a co-installed plugin.
+ *
+ * `ctx.llm.registerAdapter` refuses the WHOLE list when any single provider
+ * already has an adapter (`DUPLICATE_ADAPTER`, all-or-nothing) and the refusal
+ * does not name the offending provider. A second plugin registering the same
+ * route — the reference `dsh-connect-workbuddy` registers `workbuddy`, which this
+ * plugin also does — would therefore take down this plugin's unrelated routes
+ * (`grok-build`, the Codex routes) and every provider here, including the ones
+ * with no conflict at all.
+ *
+ * So the list is tried whole first; only on a duplicate is each route probed in
+ * isolation to find which are free, and the free ones are then registered. The
+ * probe registers and immediately releases a single route, which is why it runs
+ * only on the failure path: on the happy path there is no extra registration and
+ * no extra `llm/adapters-updated` churn.
+ *
+ * Withholding is deliberate rather than fatal: the other plugin already serves
+ * that route, so the user still has a working provider — they just do not get
+ * this plugin's version of the one route that is already spoken for.
+ *
+ * @param ctx - context carrying the LLM registry.
+ * @param routes - every route this plugin wants to serve, in preference order.
+ * @param build - builds the adapter for whichever route subset is accepted.
+ * @returns the live registration, the accepted routes, and any withheld ones.
+ */
+function registerOwnedRoutes(
+	ctx: Context,
+	routes: readonly string[],
+	build: (routes: readonly string[]) => Parameters<Context["llm"]["registerAdapter"]>[1],
+): { routes: string[]; withheld: string[]; replace(routes: string[]): void; dispose(): void } {
+	const register = (candidate: readonly string[]) => ctx.llm.registerAdapter([...candidate], build(candidate));
+	try {
+		const handle = register(routes);
+		// Every route is held, so a replacement is passed through unchanged.
+		return { routes: [...routes], withheld: [], replace: (next) => handle.replace([...next]), dispose: () => handle() };
+	} catch (error: unknown) {
+		if ((error as { code?: unknown } | null)?.code !== "DUPLICATE_ADAPTER") throw error;
+	}
+	const free: string[] = [];
+	const withheld: string[] = [];
+	for (const route of routes) {
+		let handle: (() => void) | undefined;
+		try {
+			handle = ctx.llm.registerAdapter([route], build([route]));
+			free.push(route);
+		} catch (error: unknown) {
+			if ((error as { code?: unknown } | null)?.code !== "DUPLICATE_ADAPTER") throw error;
+			withheld.push(route);
+		} finally {
+			// Release the probe immediately: it exists only to answer "is this route
+			// free?", and the real registration below supersedes it.
+			handle?.();
+		}
+	}
+	if (free.length === 0) {
+		// Nothing to serve. Reported rather than thrown so the plugin still loads and
+		// its own routes work; the caller warns about which routes were withheld.
+		return { routes: [], withheld, replace: () => undefined, dispose: () => undefined };
+	}
+	const blocked = new Set(withheld);
+	const handle = register(free);
+	return {
+		routes: free,
+		withheld,
+		// Only the known-conflicting routes are stripped. The Codex Fast reconciler
+		// replaces the whole list and adds its own route, so filtering down to `free`
+		// would silently withdraw Fast — but re-adding a route another plugin owns
+		// would throw and break that reconciler, which is what this prevents.
+		replace: (next) => handle.replace(next.filter((route) => !blocked.has(route))),
+		dispose: () => handle(),
+	};
 }
 
 /** LLM-only child runtime, independently restarted by Cordis when LLM changes. */
@@ -822,18 +1054,38 @@ function applyOwnedLlm(ctx: Context, config: Config, owner: OwnedLlmDependencies
 	);
 	const resolveCodexImageRoute: ResolveCodexImageRoute = (exec) =>
 		resolveCodexImageRouteFromLlm(exec, (provider, model, signal) => ctx.llm.resolveModelInfo(provider, model, signal));
-	const adapterRegistration = ctx.llm.registerAdapter(
-		[...CODING_OAUTH_ROUTES],
+	// `registerAdapter` is ALL-OR-NOTHING: one already-claimed provider throws
+	// DUPLICATE_ADAPTER for the whole list, which would take down this plugin's
+	// unrelated routes too. A co-installed plugin that also registers `workbuddy`
+	// (the reference `dsh-connect-workbuddy` does) must not be able to do that, so
+	// the adapter is registered on the routes THIS plugin owns and the shared one
+	// is dropped with a warning instead.
+	// The builder ignores the candidate route list on purpose: the accepted subset
+	// is what `registerAdapter` is given as its provider list, and the adapter
+	// itself serves every route it knows how to build a profile for.
+	const adapterRegistration = registerOwnedRoutes(ctx, [...CODING_OAUTH_ALL_ROUTES], () =>
 		createCodingOAuthAdapter(owner.grok, owner.subscriptions, () => ctx.get("attachments"), config.retryPolicy, {
 			codexFast: {
 				isEligible: (modelId) => owner.runtime.current().codexFast && owner.codexModels.isPriorityEligible(modelId),
 			},
+			workbuddy: owner.workbuddy,
 		}),
 	);
-	ctx.effect(() => adapterRegistration, "dsh-coding-subscription-oauth: OAuth LLM adapters");
+	if (adapterRegistration.withheld.length > 0) {
+		owner.logger.warn(
+			`LLM route(s) ${adapterRegistration.withheld.join(", ")} are already registered by another plugin; ` +
+				"this plugin keeps serving its remaining routes",
+		);
+	}
+	const registeredRoutes = adapterRegistration.routes;
+	ctx.effect(() => adapterRegistration.dispose, "dsh-coding-subscription-oauth: OAuth LLM adapters");
 	ctx.effect(
 		() =>
 			bindCodexFastRoute(owner.runtime, owner.codexModels, adapterRegistration, {
+				// The Fast route is published by replacing the whole route list, so the
+				// base must be every route this plugin actually holds; omitting one would
+				// silently withdraw it while reconciling an unrelated optional route.
+				baseRoutes: registeredRoutes,
 				onError: () => owner.logger.warn("Codex Fast eligibility refresh failed closed"),
 			}),
 		"dsh-coding-subscription-oauth: Codex Fast route",

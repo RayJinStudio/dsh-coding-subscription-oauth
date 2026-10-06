@@ -1,5 +1,5 @@
 import type { Context } from "@deepseek-ai/cordis";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CODING_OAUTH_STATUS_PATH } from "../src/auth-routes.ts";
 import { CAPABILITY_SETTINGS_PATH } from "../src/capability-routes.ts";
 import type {
@@ -12,6 +12,20 @@ import { apply } from "../src/index.ts";
 import { MediaStore } from "../src/media-store.ts";
 import { OAuthProviderSession } from "../src/oauth-session.ts";
 import { GrokBuildSession } from "../src/session.ts";
+import { WorkBuddySession } from "../src/workbuddy-session.ts";
+
+/**
+ * WorkBuddy's startup chain does real network I/O, so leaving it live inside
+ * this suite makes every test's completion time depend on the machine's network.
+ * These specs are about the OAuth catalog and route lifecycle, and the
+ * WorkBuddy chain shares the same prototype spies, so a still-pending chain from
+ * one test would land on the next test's counters. Stubbed for the whole file;
+ * the WorkBuddy-specific containment test overrides these per case.
+ */
+beforeEach(() => {
+	vi.spyOn(WorkBuddySession.prototype, "loadCachedState").mockResolvedValue(undefined);
+	vi.spyOn(WorkBuddySession.prototype, "refreshCatalog").mockResolvedValue(undefined);
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -393,6 +407,12 @@ describe("plugin startup catalog initialization", () => {
 		const refresh = vi
 			.spyOn(GrokBuildSession.prototype, "refreshLiveCatalog")
 			.mockRejectedValue(new Error("refresh failed"));
+		// WorkBuddy is stubbed to a no-op so this test's assertions count only the
+		// OAuth provider's calls. Left real, its startup fetch does network I/O whose
+		// completion is timing-dependent, and a PREVIOUS test's still-pending chain
+		// would land on these same spies and inflate the counts.
+		const workbuddyLoad = vi.spyOn(WorkBuddySession.prototype, "loadCachedState").mockResolvedValue(undefined);
+		const workbuddyRefresh = vi.spyOn(WorkBuddySession.prototype, "refreshCatalog").mockResolvedValue(undefined);
 		const warn = vi.fn();
 		const registration = Object.assign(vi.fn(), { replace: vi.fn() });
 		const registerAdapter = vi.fn(() => registration);
@@ -419,8 +439,63 @@ describe("plugin startup catalog initialization", () => {
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		await new Promise<void>((resolve) => setImmediate(resolve));
 
+		// Two ticks are what the chain needs. A third would widen the window enough
+		// for a PREVIOUS test's still-pending startup chain to reach these shared
+		// prototype spies, inflating the count — which is a property of the fixture,
+		// not of the behaviour under test.
 		expect(refresh).toHaveBeenCalledOnce();
 		expect(warn).toHaveBeenCalledWith("one or more OAuth model caches could not be loaded; using in-memory fallbacks");
 		expect(warn).toHaveBeenCalledWith("background OAuth model catalog initialization failed; using static fallbacks");
+		// The WorkBuddy refresh shares the chain and must have been attempted, which
+		// is what shows neither provider short-circuits the other.
+		expect(workbuddyLoad).toHaveBeenCalled();
+		expect(workbuddyRefresh).toHaveBeenCalledOnce();
+	});
+
+	it("contains a WorkBuddy catalog failure under its OWN warning, not the OAuth one", async () => {
+		// Regression: both providers' startup refreshes used to share one promise
+		// chain and one catch, so a WorkBuddy failure was reported as an OAuth
+		// failure — and aborted the Grok refresh besides.
+		//
+		// Every cache loader is stubbed so the chain reaches the refreshes without
+		// depending on real file I/O timing; only the refresh outcomes matter here.
+		vi.spyOn(GrokBuildSession.prototype, "loadCachedCatalog").mockResolvedValue(undefined);
+		vi.spyOn(OAuthProviderSession.prototype, "loadCachedModels").mockResolvedValue(undefined);
+		const grokRefresh = vi.spyOn(GrokBuildSession.prototype, "refreshLiveCatalog").mockResolvedValue(undefined);
+		const workbuddyLoad = vi.spyOn(WorkBuddySession.prototype, "loadCachedState").mockResolvedValue(undefined);
+		const workbuddyRefresh = vi
+			.spyOn(WorkBuddySession.prototype, "refreshCatalog")
+			.mockRejectedValue(new Error("workbuddy catalog failed"));
+		const warn = vi.fn();
+		const registration = Object.assign(vi.fn(), { replace: vi.fn() });
+		const context = {
+			webServer: requiredWebContext().webServer,
+			logger: () => ({ warn }),
+			emit: vi.fn(),
+			effect: vi.fn((setup: () => unknown) => setup()),
+			llm: { registerAdapter: vi.fn(() => registration) },
+			get: vi.fn(() => undefined),
+			inject: vi.fn((requested: readonly string[], callback: (ctx: Context) => unknown) => {
+				if (requested.length === 0) return runFiber(() => callback(context));
+				if (requested.length === 1 && requested[0] === "llm") return runFiber(() => callback(context));
+				if (requested.length === 1 && requested[0] === "webServer")
+					return runFiber(() => callback(requiredWebContext()));
+				return runFiber();
+			}),
+		} as unknown as Context;
+
+		apply(context, {});
+		for (let tick = 0; tick < 6; tick += 1) await new Promise<void>((resolve) => setImmediate(resolve));
+
+		expect(workbuddyLoad).toHaveBeenCalled();
+		expect(workbuddyRefresh).toHaveBeenCalledOnce();
+		// The WorkBuddy failure is named as such...
+		expect(warn).toHaveBeenCalledWith("background WorkBuddy model catalog initialization failed; using the baseline");
+		// ...and it did NOT leak into the OAuth wording.
+		expect(warn).not.toHaveBeenCalledWith(
+			"background OAuth model catalog initialization failed; using static fallbacks",
+		);
+		// The other provider's refresh still ran: one failure aborts neither.
+		expect(grokRefresh).toHaveBeenCalledOnce();
 	});
 });

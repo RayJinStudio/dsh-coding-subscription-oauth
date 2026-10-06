@@ -34,6 +34,18 @@ export type { AccountId, AccountRecord, AccountSummary, AuthDocumentV2, LoginPer
 export { GrokBuildCredentialStore, grokBuildAuthPath, isValidAccountId, OAUTH_MAX_ACCOUNTS, OAuthCredentialFileStore, oauthCredentialPath, resolveAccountIdForCredential, } from "./store.js";
 export type { OwnerRequestPolicy, OwnerRequestPolicyConfig } from "./web-origin.js";
 export { createOwnerRequestPolicy, LOOPBACK_OWNER_REQUEST_POLICY, OWNER_CSRF_HEADER, OWNER_PROOF_HEADER, } from "./web-origin.js";
+export type { WorkBuddyEncryptedField } from "./workbuddy-at-rest.js";
+export { clearAtRestKeyCache, deriveAtRestKey, deriveAtRestKeyId, fetchAtRestKeyPayload, findWorkbuddyAppExecutable, isEncryptedFieldWrapper, openEncryptedField, readAtRestKey, WORKBUDDY_APP_EXECUTABLE_ENV, workbuddyAppExecutableCandidates, } from "./workbuddy-at-rest.js";
+export type { WorkBuddyAccountChoice, WorkBuddyAuthDiagnosis, WorkBuddyAuthStatus, WorkBuddyCandidateFailure, WorkBuddyCandidateReason, WorkBuddyCredential, WorkBuddyRefreshOutcome, WorkBuddyRegion, WorkBuddyStoreOptions, } from "./workbuddy-auth.js";
+/** WorkBuddy: an LLM route backed by the WorkBuddy desktop app's own sign-in. */
+export { authFileName, defaultDesktopAuthCandidates, defaultDesktopAuthDirs, ENCRYPTED_CREDENTIAL_CODE, expiryToMs, hasEncryptedCredentialFields, isWorkBuddyEncryptedCredentialError, legacyWorkbuddyOwnAuthPath, parseWorkBuddyAuth, WORKBUDDY_AUTH_FILE_ENV, WORKBUDDY_AUTH_FILENAME, WorkBuddyCredentialStore, WorkBuddyEncryptedCredentialError, workbuddyAccountId, workbuddyCredentialKey, workbuddyOwnAuthPath, workbuddyRegionOf, } from "./workbuddy-auth.js";
+export { FALLBACK_WORKBUDDY_MODELS, WORKBUDDY_DISPLAY_NAME, WORKBUDDY_IMAGE_BUDGETS, WORKBUDDY_NATIVE_MODALITY, WORKBUDDY_PI_PROVIDER, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, withWorkBuddyWire, workbuddyDisplayName, workbuddyModelTakesImages, workbuddyPiModel, workbuddyProvider, workbuddyThinkingLevelMap, } from "./workbuddy-provider.js";
+export type { WorkBuddyModelView, WorkBuddyRouteSurface, WorkBuddyView } from "./workbuddy-routes.js";
+export { createWorkBuddyRouteSurface, registerWorkBuddyRoutes, WORKBUDDY_CHECKIN_PATH, WORKBUDDY_MODELS_PATH, WORKBUDDY_STATUS_PATH, } from "./workbuddy-routes.js";
+export type { WorkBuddyCatalogSource, WorkBuddyContextBudget } from "./workbuddy-session.js";
+export { WORKBUDDY_MODELS_CACHE_FILENAME, WorkBuddySession, workbuddyModelsCachePath } from "./workbuddy-session.js";
+export type { WorkBuddyCheckinClaim, WorkBuddyCheckinStatus, WorkBuddyCreditPackage, WorkBuddyCredits, WorkBuddyErrorKind, WorkBuddyModelInfo, WorkBuddyReasoning, } from "./workbuddy-upstream.js";
+export { claimWorkBuddyCheckin, classifyWorkBuddyError, fetchWorkBuddyCatalog, fetchWorkBuddyCheckinStatus, fetchWorkBuddyCredits, parseWorkBuddyCreditMultiplier, parseWorkBuddyModel, parseWorkBuddyReasoning, prepareWorkBuddyChatBody, refreshWorkBuddyToken, selectWorkBuddyRoster, WORKBUDDY_CHAT_PATH, WORKBUDDY_CHECKIN_CLAIM_PATH, WORKBUDDY_CHECKIN_STATUS_PATH, WORKBUDDY_CREDITS_PATH, WORKBUDDY_FALLBACK_SYSTEM_PROMPT, WORKBUDDY_REFRESH_PATH, WorkBuddyUpstreamError, workbuddyBillingBase, workbuddyBillingHeaders, workbuddyChatBase, workbuddyChatHeaders, workbuddyCheckinSupported, workbuddyGlobalBase, workbuddyModelHeaders, workbuddyRefreshHeaders, } from "./workbuddy-upstream.js";
 /** Stable Cordis plugin name. */
 export declare const name = "llm-grok-build-oauth";
 /** Separate API-key credential used only by official xAI Imagine REST calls. */

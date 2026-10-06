@@ -66,6 +66,14 @@ export interface CodexFastBindingOptions {
     readonly refreshIntervalMs?: number;
     readonly timer?: CapabilityTimer;
     readonly onError?: (error: unknown) => void;
+    /**
+     * Routes that stay published whether or not Fast is eligible.
+     *
+     * Defaults to the frozen core tuple; the parent passes the plugin's FULL
+     * route list so a route owned here (WorkBuddy) is not withdrawn as a side
+     * effect of reconciling an unrelated optional route.
+     */
+    readonly baseRoutes?: readonly string[];
 }
 /**
  * Publish the Fast route only after a fresh live catalog explicitly lists at

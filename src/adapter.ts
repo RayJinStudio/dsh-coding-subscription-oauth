@@ -20,12 +20,16 @@ import {
 	GROK_BUILD_STREAM_IDLE_TIMEOUT_MS,
 	KIMI_CODE_OAUTH_ROUTE,
 	KIMI_PI_PROVIDER,
+	WORKBUDDY_ROUTE,
 	XAI_PI_PROVIDER,
 } from "./ids.ts";
 import type { OAuthProviderSession } from "./oauth-session.ts";
 import { grokBuildBaselineModels, grokBuildFingerprintHeaders } from "./provider.ts";
 import { safeMessage } from "./redact.ts";
 import type { GrokBuildSession } from "./session.ts";
+import { WORKBUDDY_DISPLAY_NAME, workbuddyChatBase, workbuddyProvider } from "./workbuddy-provider.ts";
+import type { WorkBuddySession } from "./workbuddy-session.ts";
+import { workbuddyModelHeaders } from "./workbuddy-upstream.ts";
 
 type PiAiAuthInjection = PiAiAdapterOptions["auth"];
 type PiAiCredentialStore = PiAiAuthInjection["credentials"];
@@ -178,6 +182,14 @@ export function createGrokBuildAdapter(
 export interface CodingOAuthAdapterOptions {
 	retryPolicy?: RetryPolicyConfig;
 	codexFast?: { isEligible(modelId: string): boolean };
+	/**
+	 * WorkBuddy session, when the route should be served.
+	 *
+	 * Unlike the OAuth subscriptions this is not a login provider: the credential
+	 * comes from the WorkBuddy desktop app, so the session owns discovery,
+	 * refresh, the live roster and the per-model context budgets.
+	 */
+	workbuddy?: WorkBuddySession;
 }
 
 function isRetryPolicyConfig(value: object): value is RetryPolicyConfig {
@@ -199,6 +211,7 @@ function splitCodingOAuthAdapterArgs(
 	return {
 		...(fourth.retryPolicy === undefined ? {} : { retryPolicy: fourth.retryPolicy }),
 		...(fourth.codexFast === undefined ? {} : { codexFast: fourth.codexFast }),
+		...(fourth.workbuddy === undefined ? {} : { workbuddy: fourth.workbuddy }),
 	};
 }
 
@@ -223,7 +236,7 @@ export function createCodingOAuthAdapter(
 	retryPolicyOrOptions?: RetryPolicyConfig | CodingOAuthAdapterOptions,
 	options?: CodingOAuthAdapterOptions,
 ): LlmAdapter {
-	const { retryPolicy, codexFast } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
+	const { retryPolicy, codexFast, workbuddy } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
 	const byNativeId = new Map(subscriptions.map((session) => [session.definition.nativeProviderId, session]));
 	const codexSession = byNativeId.get(CODEX_PI_PROVIDER);
 	const aliases = new Map<string, string>([
@@ -234,6 +247,12 @@ export function createCodingOAuthAdapter(
 	]);
 	if (codexFast !== undefined && codexSession !== undefined) {
 		aliases.set(CODEX_OAUTH_FAST_ROUTE, CODEX_OAUTH_FAST_ROUTE);
+	}
+	if (workbuddy !== undefined) {
+		// The route and the pi-ai provider id are deliberately identical, as they
+		// are for Grok Build: the model descriptors carry `provider: WORKBUDDY_ROUTE`,
+		// and the profile map is keyed by that same id.
+		aliases.set(WORKBUDDY_ROUTE, WORKBUDDY_ROUTE);
 	}
 	const policies = new Map<string, AliasLlmRoutePolicy>([
 		[
@@ -258,6 +277,15 @@ export function createCodingOAuthAdapter(
 			isAuthenticated: async () => (await codexSession.status()).authenticated,
 			includeModel: (modelId) => codexFast.isEligible(modelId),
 			onAuthFailure: () => codexSession.invalidateAccessToken(),
+		});
+	}
+	if (workbuddy !== undefined) {
+		policies.set(WORKBUDDY_ROUTE, {
+			displayName: WORKBUDDY_DISPLAY_NAME,
+			// The desktop app owns the sign-in, so "authenticated" is "the plugin
+			// can read a usable credential", never a login this plugin performed.
+			isAuthenticated: async () => (await workbuddy.store.status()).state === "signed-in",
+			onAuthFailure: () => workbuddy.store.invalidateAccessToken(),
 		});
 	}
 
@@ -302,6 +330,28 @@ export function createCodingOAuthAdapter(
 					),
 				);
 			}
+			if (workbuddy !== undefined) {
+				// The roster closure is LIVE and synchronous, because pi-ai's
+				// `profiles` callback is. It re-derives the base URL and the
+				// credential-dependent WorkBuddy headers from the credential the store
+				// has most recently seen, so switching between a domestic and an
+				// international account reaches the next request without a rebuild.
+				profiles.set(
+					WORKBUDDY_ROUTE,
+					profile(
+						WORKBUDDY_ROUTE,
+						WORKBUDDY_DISPLAY_NAME,
+						workbuddyProvider({
+							models: () => {
+								const peeked = workbuddy.store.peek();
+								const base = `${workbuddyChatBase({ domain: peeked?.domain ?? "" })}/v2`;
+								return workbuddy.piModels(base, peeked === undefined ? {} : workbuddyModelHeaders(peeked));
+							},
+						}),
+						retryPolicy,
+					),
+				);
+			}
 			return profiles;
 		},
 		resolveApiKey: async (provider) => {
@@ -310,6 +360,13 @@ export function createCodingOAuthAdapter(
 					const auth = await grok.models.getAuth(XAI_PI_PROVIDER, { minOAuthValidityMs: MIN_OAUTH_VALIDITY_MS });
 					return auth?.auth.apiKey;
 				});
+			}
+			if (provider === WORKBUDDY_ROUTE) {
+				if (workbuddy === undefined) throw new LlmError(`Unknown OAuth provider "${provider}"`, "NO_ADAPTER");
+				// The store owns refresh (single-flight, five-minute margin) and the
+				// desktop app owns the sign-in, so this is the only place a WorkBuddy
+				// request acquires its bearer.
+				return resolveOAuthToken("WorkBuddy", async () => (await workbuddy.store.resolve()).accessToken);
 			}
 			const session =
 				provider === CODEX_OAUTH_FAST_ROUTE ? byNativeId.get(CODEX_PI_PROVIDER) : byNativeId.get(provider);

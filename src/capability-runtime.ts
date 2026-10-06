@@ -230,6 +230,14 @@ export interface CodexFastBindingOptions {
 	readonly refreshIntervalMs?: number;
 	readonly timer?: CapabilityTimer;
 	readonly onError?: (error: unknown) => void;
+	/**
+	 * Routes that stay published whether or not Fast is eligible.
+	 *
+	 * Defaults to the frozen core tuple; the parent passes the plugin's FULL
+	 * route list so a route owned here (WorkBuddy) is not withdrawn as a side
+	 * effect of reconciling an unrelated optional route.
+	 */
+	readonly baseRoutes?: readonly string[];
 }
 
 const DEFAULT_FAST_REFRESH_INTERVAL_MS = 60_000;
@@ -258,7 +266,8 @@ export function bindCodexFastRoute(
 
 	const replace = (enabled: boolean): void => {
 		if (enabled === fastPublished) return;
-		registration.replace(enabled ? [...CODING_OAUTH_ROUTES, CODEX_OAUTH_FAST_ROUTE] : [...CODING_OAUTH_ROUTES]);
+		const base = options.baseRoutes ?? CODING_OAUTH_ROUTES;
+		registration.replace(enabled ? [...base, CODEX_OAUTH_FAST_ROUTE] : [...base]);
 		fastPublished = enabled;
 	};
 	const stopTimer = (): void => {

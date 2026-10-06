@@ -33,6 +33,108 @@ export type CapabilitySettingKey = CapabilityFlagKey | CapabilityLimitKey;
 export type SettingsTabId = "accounts" | "capabilities" | "gateway" | "search" | "about";
 export type CopyField = "openai" | "anthropic" | "key";
 
+/** One WorkBuddy model row as the card renders it. */
+export interface WorkBuddyModelView {
+	id: string;
+	name: string;
+	/** Effective window after the saved budget, which is what DSH uses. */
+	contextWindow: number;
+	/** The model's own window; a budget can only lower it. */
+	nativeContextWindow: number;
+	maxTokens: number;
+	creditMultiplier?: number;
+	takesImages: boolean;
+	reasoning: boolean;
+	/** Whether the model is currently served to DSH. */
+	enabled: boolean;
+}
+
+/** One discovered auth file, as the card offers it. */
+export interface WorkBuddyAuthFileView {
+	path: string;
+	displayPath: string;
+	source: "desktop" | "dsh";
+	active: boolean;
+	readable: boolean;
+	region?: "cn" | "global";
+	accountName?: string;
+	tokenExpiresAtMs?: number;
+	reason?: string;
+	message?: string;
+}
+
+/** Today's check-in state, from the billing host. */
+export interface WorkBuddyCheckinView {
+	active: boolean;
+	todayCheckedIn: boolean;
+	streakDays: number;
+	dailyCredit: number;
+	todayCredit: number;
+	isStreakDay: boolean;
+	nextStreakDay: number;
+	streakBonusDays: number;
+	streakBonusCredit: number;
+	claimButtonText?: string;
+}
+
+/** Aggregated remaining credit. */
+export interface WorkBuddyCreditsView {
+	totalCount: number;
+	/** Sum of each package's `remaining`, i.e. what is actually left to spend. */
+	totalRemaining: number;
+	packages: readonly {
+		accountId: number;
+		dealName: string;
+		packageName?: string;
+		capacityType: number;
+		capacityUnit: string;
+		/** The current cycle's for a monthly package, the package's own otherwise. */
+		remaining: number;
+		total: number;
+		/** True when `remaining`/`total` are the current cycle's figures. */
+		monthly: boolean;
+		cycleStartTime?: string;
+		cycleEndTime?: string;
+		expiredTime?: string;
+	}[];
+}
+
+/** Secret-free WorkBuddy snapshot served by the plugin route. */
+export interface WorkBuddyView {
+	provider: {
+		state: "signed-in" | "signed-out";
+		region?: "cn" | "global";
+		expiresAtMs?: number;
+		nickname?: string;
+		domain?: string;
+		source?: "desktop" | "dsh";
+	};
+	catalog: {
+		source: "live" | "cache" | "fallback";
+		error?: string;
+		models: readonly WorkBuddyModelView[];
+		enabledModelIds: readonly string[];
+		selectionExplicit: boolean;
+		contextBudgets: Readonly<Record<string, number>>;
+	};
+	desktopFilePresent: boolean;
+	/** Every auth file the store can read, plus which one is in force. */
+	authFiles: readonly WorkBuddyAuthFileView[];
+	authFileOverride?: string;
+	checkinSupported: boolean;
+	checkin?: WorkBuddyCheckinView;
+	checkinError?: string;
+	credits?: WorkBuddyCreditsView;
+	creditsError?: string;
+}
+
+/** What a check-in click answered. */
+export interface WorkBuddyCheckinResult {
+	alreadyCheckedIn: boolean;
+	claim?: { credit: number; streakDays: number; isStreakDay: boolean };
+	checkin: WorkBuddyCheckinView;
+}
+
 /** One selectable DSH web search provider. */
 export interface SearchProviderOption {
 	/** Provider id written into the profile's `web.searchProvider`, or "" for auto. */

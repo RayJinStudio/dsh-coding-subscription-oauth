@@ -33,6 +33,7 @@ import {
 	SOURCES_PATH,
 	SOURCES_PREVIEW_PATH,
 	STATUS_PATH,
+	WORKBUDDY_STATUS_PATH,
 } from "./constants.ts";
 import { ensureMicroStyles } from "./microStyles.ts";
 import {
@@ -127,8 +128,30 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 	const [copyFailedField, setCopyFailedField] = useState<CopyField | undefined>(undefined);
 	const [expandedProviders, setExpandedProviders] = useState<Partial<Record<ProviderSlug, boolean>>>({});
 	const [remoteTipDismissed, setRemoteTipDismissed] = useState(readRemoteTipDismissed);
+	const [workbuddySignedIn, setWorkbuddySignedIn] = useState(false);
 	const copiedTimerRef = useRef<number | undefined>(undefined);
 	const remote = status?.accessMode === "ssh-tunnel" || status?.accessMode === "trusted-https-proxy";
+
+	// WorkBuddy keeps its own live state (the desktop app owns the sign-in), so its
+	// status is polled on the same page rather than folded into the shared document.
+	// Re-probed whenever the shared status changes, which is exactly when a user has
+	// just acted on an account.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `status` is the re-probe trigger
+	useEffect(() => {
+		let live = true;
+		const probe = async (): Promise<void> => {
+			try {
+				const view = await jsonRequest<{ provider?: { state?: string } }>(`${WORKBUDDY_STATUS_PATH}?checkin=0`);
+				if (live) setWorkbuddySignedIn(view.provider?.state === "signed-in");
+			} catch {
+				if (live) setWorkbuddySignedIn(false);
+			}
+		};
+		void probe();
+		return () => {
+			live = false;
+		};
+	}, [status]);
 
 	const refresh = useCallback(async () => {
 		try {
@@ -739,6 +762,7 @@ export function GrokBuildSettings({ t, close, initialTab }: GrokBuildSettingsPro
 				{activeTab === "accounts" && !(status === undefined && requestError !== undefined) ? (
 					<AccountsTab
 						renderCapabilities={renderCapabilities}
+						workbuddySignedIn={workbuddySignedIn}
 						onLoadCapabilities={() => {
 							void refreshCapabilities();
 							void refreshImagine();

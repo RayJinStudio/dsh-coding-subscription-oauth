@@ -241,6 +241,57 @@ export const copyRowStyle: CSSProperties = {
 	flexWrap: "wrap",
 	gap: 8,
 };
+/**
+ * A pick-one grid for credential files.
+ *
+ * Cards rather than rows because the identifying value of a file is short (an
+ * account name, a rotation stamp) while a row layout stretches it across the
+ * full width and wraps the metadata onto orphan lines. `min(230px, 100%)` keeps
+ * one column on a narrow panel instead of overflowing it.
+ */
+export const authFileGridStyle: CSSProperties = {
+	display: "grid",
+	gridTemplateColumns: "repeat(auto-fill, minmax(min(230px, 100%), 1fr))",
+	gap: 10,
+};
+export const authFileCardStyle: CSSProperties = {
+	display: "grid",
+	gridTemplateColumns: "auto minmax(0, 1fr)",
+	alignItems: "start",
+	gap: 10,
+	padding: "12px 14px",
+	border: "0.5px solid var(--dsw-alias-border-l2)",
+	borderRadius: "var(--dsw-radius-lg, 16px)",
+	background: "var(--dsw-alias-bg-layer-1)",
+	cursor: "pointer",
+	transition: TRANSITION,
+};
+/**
+ * The chosen card. Selection is carried by border and fill together so it
+ * survives both themes: the fill alone is a `color-mix` that reads as almost
+ * nothing in dark mode.
+ */
+export const authFileCardSelectedStyle: CSSProperties = {
+	...authFileCardStyle,
+	border: "0.5px solid var(--dsw-alias-brand-primary)",
+	background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-1))",
+};
+/** The "keep the platform defaults" card, visibly not one of the files. */
+export const authFileCardMutedStyle: CSSProperties = {
+	...authFileCardStyle,
+	border: "0.5px dashed var(--dsw-alias-border-l3)",
+	background: "transparent",
+};
+export const authFileRadioStyle: CSSProperties = {
+	margin: "1px 0 0",
+	accentColor: "var(--dsw-alias-brand-primary)",
+};
+export const authFileBadgeRowStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: 6,
+	flexWrap: "wrap",
+};
 export const skeletonStyle: CSSProperties = {
 	...cardStyle,
 	minHeight: 88,
