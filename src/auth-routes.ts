@@ -845,6 +845,7 @@ export function registerCodingOAuthRoutes(
 	}),
 	usageReader?: () => unknown | Promise<unknown>,
 	kimiUsageReader?: () => unknown | Promise<unknown>,
+	workbuddyUsageReader?: () => unknown | Promise<unknown>,
 ): void {
 	const grok = new GrokBuildWebAuth(grokSession);
 	const subscriptions = new Map(
@@ -1072,16 +1073,21 @@ export function registerCodingOAuthRoutes(
 					const decision = ownerRequestPolicy.authorize(req);
 					if (!decision.authorized) return json(res, 403, { error: "forbidden" });
 					try {
-						const [codexRes, kimiRes] = await Promise.allSettled([
+						const [codexRes, kimiRes, workbuddyRes] = await Promise.allSettled([
 							usageReader ? Promise.resolve(usageReader()) : Promise.resolve(undefined),
 							kimiUsageReader ? Promise.resolve(kimiUsageReader()) : Promise.resolve(undefined),
+							workbuddyUsageReader ? Promise.resolve(workbuddyUsageReader()) : Promise.resolve(undefined),
 						]);
 						const codexUsage = codexRes.status === "fulfilled" ? codexRes.value : undefined;
 						const kimiUsage = kimiRes.status === "fulfilled" ? kimiRes.value : undefined;
+						const workbuddyUsage = workbuddyRes.status === "fulfilled" ? workbuddyRes.value : undefined;
 						json(res, 200, {
 							providers: {
 								codex: codexUsage ? { supported: true, usage: codexUsage } : { supported: false },
 								kimi: kimiUsage ? { supported: true, usage: kimiUsage } : { supported: false },
+								// A signed-out account yields no usage, so the badge hides
+								// WorkBuddy rather than showing a stale zero.
+								workbuddy: workbuddyUsage ? { supported: true, usage: workbuddyUsage } : { supported: false },
 							},
 						});
 					} catch (error: unknown) {

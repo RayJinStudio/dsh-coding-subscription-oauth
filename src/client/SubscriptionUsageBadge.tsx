@@ -1,10 +1,10 @@
 import * as primitives from "@deepseek-ai/dsh-client-ui-primitives";
 import { useAnchoredPosition, useDismissOnOutsidePointer } from "@deepseek-ai/dsh-client-ui-primitives";
-import { type ComponentType, type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentType, type CSSProperties, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type KimiUsage, parseKimiUsage } from "../kimi-usage.ts";
 import { jsonRequest } from "./api.ts";
-import { CODEX_USAGE_PATH, KIMI_USAGE_PATH, SUBSCRIPTION_USAGE_PATH } from "./constants.ts";
+import { CODEX_USAGE_PATH, KIMI_USAGE_PATH, SUBSCRIPTION_USAGE_PATH, WORKBUDDY_ROUTE } from "./constants.ts";
 import { hostIcon } from "./host-icons.ts";
 import type { GrokBuildSettingsKey } from "./locales.ts";
 import { en } from "./locales.ts";
@@ -12,9 +12,38 @@ import { parseUsage } from "./parsers.ts";
 import type { UsageView } from "./types.ts";
 import { useUsageBadgeMode } from "./usage-badge-preferences.ts";
 
-export type IconComponent = ComponentType<{ style?: CSSProperties }>;
+/**
+ * The badge's glyph, sized like the host's own composer pills.
+ *
+ * DSH renders every stat pill's icon at a forced 14px
+ * (`StatsPills.module.css` `.pill svg`, `stat-dialog.module.css` `.titleLabel
+ * svg`). The host glyph's own default is 16px, so leaving it unset made this
+ * badge read larger than the pills beside it; the size is passed explicitly
+ * because this plugin styles inline and has no CSS module to hang the rule on.
+ */
+export type IconComponent = ComponentType<{ style?: CSSProperties; size?: number }>;
 
+const USAGE_ICON_SIZE = 14;
 const UsageBadgeIcon = hostIcon(primitives, "DataOutline") as unknown as IconComponent;
+
+/**
+ * The pill and dialog glyph: 14px, as the host's own `svg` rules render.
+ *
+ * `size` is passed explicitly because the host glyph's own default is 16px and
+ * the host's `svg { width/height: 14px }` rule only matches pills carrying its
+ * CSS-module class, which this inline-styled badge does not.
+ *
+ * The glyph DROPS a `style` prop (its artwork destructures only `size`,
+ * `className`, and `strokeWidth`), so the non-shrinking rule that the host
+ * applies via `.pill svg { flex: none }` has to sit on a wrapper element here.
+ */
+function BadgeIcon() {
+	return (
+		<span style={styles.icon}>
+			<UsageBadgeIcon size={USAGE_ICON_SIZE} />
+		</span>
+	);
+}
 
 const USAGE_POLL_INTERVAL_MS = 60_000;
 const MODEL_POLL_INTERVAL_MS = 3000;
@@ -50,11 +79,17 @@ export interface AccountUsageDisplay {
 	isDefault: boolean;
 	windows: UsageWindowDisplay[];
 	extraLabel?: string | undefined;
+	/**
+	 * A bare remaining-credit figure for a provider whose quota is a credit
+	 * balance rather than rate-limit windows (WorkBuddy). Kept unformatted so the
+	 * label is built at render time, where the translation function is in scope.
+	 */
+	creditValue?: string | undefined;
 	fetchedAt?: number | undefined;
 }
 
 export interface ProviderUsageDisplay {
-	provider: "codex" | "kimi";
+	provider: "codex" | "kimi" | "workbuddy";
 	name: string;
 	accounts: AccountUsageDisplay[];
 }
@@ -65,10 +100,14 @@ export interface ProviderUsageDisplay {
  * between "which model is selected" and "which subscription it spends"; an
  * unknown value is a model outside every supported subscription.
  */
-export function providerKeyOf(provider: string | undefined): "codex" | "kimi" | undefined {
+export function providerKeyOf(provider: string | undefined): "codex" | "kimi" | "workbuddy" | undefined {
 	if (!provider) return undefined;
 	if (provider === "codex" || provider === "codex-oauth" || provider === "openai-codex") return "codex";
 	if (provider === "kimi" || provider === "kimi-code-oauth" || provider === "kimi-coding") return "kimi";
+	// `workbuddy-oauth` is this plugin's route; the bare `workbuddy` belongs to
+	// the co-installed reference plugin, which serves the same account and is
+	// worth showing the badge for too.
+	if (provider === WORKBUDDY_ROUTE || provider === "workbuddy") return "workbuddy";
 	return undefined;
 }
 
@@ -103,16 +142,46 @@ export function usageBarColor(percent: number): string {
 	return "var(--dsw-alias-state-success-primary)";
 }
 
+/**
+ * The pill's single line. A rate-limit provider reads as its used percentages;
+ * WorkBuddy has no windows and reads as its provider name plus the credits left,
+ * e.g. "WorkBuddy 2630 credits".
+ */
 export function compactSegment(
 	d: ProviderUsageDisplay,
 	_model?: string,
-	_t: (key: GrokBuildSettingsKey, params?: Record<string, unknown>) => string = fallbackTranslate,
+	t: (key: GrokBuildSettingsKey, params?: Record<string, unknown>) => string = fallbackTranslate,
 ): string {
 	const account = d.accounts.find((a) => a.isDefault) ?? d.accounts[0];
-	if (!account || account.windows.length === 0) return d.name;
+	if (!account) return d.name;
+	if (account.creditValue !== undefined) {
+		return `${d.name} ${t("usageWorkbuddyCredits", { credits: account.creditValue })}`;
+	}
+	if (account.windows.length === 0) return d.name;
 	const parts = account.windows.slice(0, 2).map((w) => `${windowLabel(w)} ${usedPercent(w)}%`);
 	if (account.windows.length > 2) parts.push(`+${account.windows.length - 2}`);
 	return `${d.name} ${parts.join(" · ")}`;
+}
+
+/**
+ * Read one WorkBuddy usage share off the aggregate route.
+ *
+ * The server owns the projection, so this only validates: a malformed or absent
+ * share hides the provider rather than rendering `NaN` credits.
+ */
+function parseWorkBuddyUsage(
+	raw: unknown,
+): { account?: string; totalRemaining: number; fetchedAt?: number } | undefined {
+	if (typeof raw !== "object" || raw === null) return undefined;
+	const body = raw as Record<string, unknown>;
+	if (typeof body["totalRemaining"] !== "number" || !Number.isFinite(body["totalRemaining"])) return undefined;
+	const account = typeof body["account"] === "string" && body["account"] !== "" ? body["account"] : undefined;
+	const fetchedAt = typeof body["fetchedAt"] === "number" ? body["fetchedAt"] : undefined;
+	return {
+		...(account === undefined ? {} : { account }),
+		totalRemaining: body["totalRemaining"],
+		...(fetchedAt === undefined ? {} : { fetchedAt }),
+	};
 }
 
 type ModelSelection = { provider: string; model: string };
@@ -221,6 +290,7 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 				providers?: {
 					codex?: { supported: boolean; usage?: unknown };
 					kimi?: { supported: boolean; usage?: unknown };
+					workbuddy?: { supported: boolean; usage?: unknown };
 				};
 			}>(SUBSCRIPTION_USAGE_PATH).catch(() => undefined);
 
@@ -265,6 +335,27 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 					name: "Kimi",
 					accounts: [
 						{ key: "default", isDefault: true, windows: kimiWindows, extraLabel, fetchedAt: kimiUsage.fetchedAt },
+					],
+				});
+			}
+
+			// 3. WorkBuddy. Its quota is a credit BALANCE, not rate-limit windows, so
+			//    the share carries the account name and the remaining total instead.
+			const workbuddyRaw = res?.providers?.workbuddy?.usage;
+			const workbuddy = parseWorkBuddyUsage(workbuddyRaw);
+			if (workbuddy !== undefined) {
+				newDisplays.push({
+					provider: "workbuddy",
+					name: "WorkBuddy",
+					accounts: [
+						{
+							key: "default",
+							isDefault: true,
+							windows: [],
+							...(workbuddy.account === undefined ? {} : { account: workbuddy.account }),
+							creditValue: String(Math.round(workbuddy.totalRemaining)),
+							...(workbuddy.fetchedAt === undefined ? {} : { fetchedAt: workbuddy.fetchedAt }),
+						},
 					],
 				});
 			}
@@ -383,8 +474,6 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 		if (next) void refresh();
 	};
 
-	const orderedDisplays = [activeDisplay, ...displays.filter((disp) => disp !== activeDisplay)];
-
 	const pill = (
 		<span ref={rootRef} style={styles.anchor}>
 			<button
@@ -398,7 +487,7 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 				onMouseLeave={() => setHover(false)}
 				onClick={toggle}
 			>
-				<UsageBadgeIcon />
+				<BadgeIcon />
 				<span style={styles.label}>{label}</span>
 			</button>
 			{open &&
@@ -406,64 +495,59 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 					<div ref={panelRef} role="dialog" aria-label={title} style={{ ...styles.panel, ...(pos ?? MEASURE_STYLE) }}>
 						<div style={styles.title}>
 							<span style={styles.titleLabel}>
-								<UsageBadgeIcon />
+								<BadgeIcon />
 								{title}
 							</span>
 						</div>
 						<div style={styles.titleRule} aria-hidden />
-						{orderedDisplays.map((disp, index) => (
-							<section key={disp.provider} style={index === 0 ? undefined : styles.section}>
-								<div style={styles.providerRow}>
-									<span style={styles.providerName}>
-										{disp.name}
-										{disp === activeDisplay ? (
-											<span style={styles.currentTag}>{translate("usageBadgeCurrent")}</span>
-										) : null}
-									</span>
-								</div>
-								{disp.accounts.map((account) => (
-									<div key={account.key} style={styles.accountBlock}>
-										<dl style={styles.details}>
-											{account.windows.map((w, windowIndex) => {
-												const percent = usedPercent(w);
-												return (
+						{/* Only the subscription behind the CURRENT model. The badge answers
+						    "what is this conversation spending", so listing every connected
+						    provider made the panel long and buried the one that mattered. */}
+						<div style={styles.providerRow}>
+							<span style={styles.providerName}>{activeDisplay.name}</span>
+						</div>
+						{activeDisplay.accounts.map((account) => (
+							<div key={account.key} style={styles.accountBlock}>
+								{/* A credit-balance provider has no rate-limit windows, and a
+								    `0%` bar would misread as "exhausted"; it shows the
+								    account and the remaining figure instead. */}
+								{account.creditValue === undefined ? null : (
+									<dl style={styles.details}>
+										<dt style={styles.dt}>{account.account ?? translate("workbuddyAccount")}</dt>
+										<dd style={styles.dd}>{translate("usageWorkbuddyCredits", { credits: account.creditValue })}</dd>
+									</dl>
+								)}
+								<dl style={styles.details}>
+									{account.windows.map((w, windowIndex) => {
+										const percent = usedPercent(w);
+										return (
+											<Fragment key={`${w.kind}-${w.scope ?? "default"}-${String(windowIndex)}`}>
+												<dt style={styles.dt}>
+													{w.kind === "session"
+														? translate("usageSession")
+														: w.kind === "weekly"
+															? translate("usageWeekly")
+															: translate("usageWindow")}
+													{w.scope ? ` · ${w.scope}` : ""}
+												</dt>
+												<dd style={styles.dd}>
+													{percent}%{w.resetsAt !== undefined && <span style={styles.reset}> · {windowLabel(w)}</span>}
+												</dd>
+												<div style={styles.bar} aria-hidden>
 													<div
-														key={`${w.kind}-${w.scope ?? "default"}-${String(windowIndex)}`}
-														style={styles.windowItem}
-													>
-														<dt style={styles.dt}>
-															{w.kind === "session"
-																? translate("usageSession")
-																: w.kind === "weekly"
-																	? translate("usageWeekly")
-																	: translate("usageWindow")}
-															{w.scope ? ` · ${w.scope}` : ""}
-														</dt>
-														<dd style={styles.dd}>
-															{percent}%
-															{w.resetsAt !== undefined && <span style={styles.reset}> · {windowLabel(w)}</span>}
-														</dd>
-														<div style={styles.bar} aria-hidden>
-															<div
-																style={{
-																	...styles.barFill,
-																	width: `${percent}%`,
-																	background: usageBarColor(percent),
-																}}
-															/>
-														</div>
-													</div>
-												);
-											})}
-										</dl>
-										{account.extraLabel ? (
-											<div style={{ marginTop: 6, fontSize: 11, color: "var(--dsw-alias-label-tertiary)" }}>
-												{account.extraLabel}
-											</div>
-										) : null}
-									</div>
-								))}
-							</section>
+														style={{
+															...styles.barFill,
+															width: `${percent}%`,
+															background: usageBarColor(percent),
+														}}
+													/>
+												</div>
+											</Fragment>
+										);
+									})}
+								</dl>
+								{account.extraLabel ? <div style={styles.extra}>{account.extraLabel}</div> : null}
+							</div>
 						))}
 					</div>,
 					document.body,
@@ -489,19 +573,34 @@ type StyleMap = Record<string, CSSProperties & Record<`--${string}`, string>>;
 
 const styles: StyleMap = {
 	seat: { display: "none" },
-	anchor: { minWidth: 0, maxWidth: "100%", display: "inline-flex" },
+	/**
+	 * Anchor and pill typography copied from the host's own composer pills
+	 * (`ui-chat/StatsPills.module.css`): the anchor carries the 12px/20px text
+	 * tier and the pill inherits it (`font: inherit`, `line-height: inherit`).
+	 *
+	 * The size is `--dsh-content-font-size-secondary` MINUS 1px, matching DSH's
+	 * `calc(var(--dsh-content-font-size-secondary, 13px) - 1px)`. It must be set
+	 * on the anchor rather than the pill so the portaled panel, which hangs off
+	 * the same subtree, is unaffected -- the panel sets its own 12/18.
+	 */
+	anchor: {
+		minWidth: 0,
+		maxWidth: "100%",
+		display: "inline-flex",
+		fontSize: "calc(var(--dsh-content-font-size-secondary, 13px) - 1px)",
+		lineHeight: "calc(20px + var(--dsh-content-font-delta-secondary, 0px))",
+	},
 	pill: {
 		boxSizing: "border-box",
 		maxWidth: "100%",
 		color: "var(--dsw-alias-label-tertiary)",
 		font: "inherit",
-		fontSize: "var(--dsh-content-font-size-secondary, 13px)",
 		fontVariantNumeric: "tabular-nums",
-		lineHeight: "20px",
+		lineHeight: "inherit",
 		whiteSpace: "nowrap",
 		background: "transparent",
 		border: "none",
-		borderRadius: 24,
+		borderRadius: 999,
 		alignItems: "center",
 		gap: 6,
 		padding: "1px 8px",
@@ -512,6 +611,8 @@ const styles: StyleMap = {
 		background: "var(--dsw-alias-interactive-bg-hover)",
 		color: "var(--dsw-alias-label-secondary)",
 	},
+	/** `flex: none` on a wrapper, because the host glyph ignores a `style` prop. */
+	icon: { display: "inline-flex", flex: "none" },
 	label: { textOverflow: "ellipsis", minWidth: 0, overflow: "hidden" },
 	// The DSH stat-dialog skin (ui-chat stat-dialog.module.css): menu surface,
 	// `--dsw-menu-backdrop-filter` transparency/blur, and the elevation-prominent
@@ -550,8 +651,6 @@ const styles: StyleMap = {
 	},
 	titleLabel: { alignItems: "center", gap: 6, minWidth: 0, display: "inline-flex" },
 	titleRule: { borderTop: "0.5px solid var(--dsw-alias-border-l2)", marginBottom: 10 },
-	// One rule per provider section, identical to the title rule under a heading.
-	section: { marginTop: 12, paddingTop: 10, borderTop: "0.5px solid var(--dsw-alias-border-l2)" },
 	providerRow: {
 		display: "flex",
 		justifyContent: "space-between",
@@ -566,25 +665,23 @@ const styles: StyleMap = {
 		alignItems: "center",
 		gap: 6,
 	},
-	currentTag: {
-		fontSize: 10,
-		lineHeight: "14px",
-		fontWeight: 400,
-		padding: "0 5px",
-		borderRadius: "var(--dsw-radius-sm, 8px)",
-		color: "var(--dsw-alias-label-secondary)",
-		background: "var(--dsw-alias-interactive-bg-hover)",
-	},
 	accountBlock: { marginTop: 8 },
-	details: { margin: 0, padding: 0 },
-	windowItem: {
-		color: "var(--dsw-alias-label-tertiary)",
+	/**
+	 * Row grid copied from the host's `stat-dialog.module.css` `.details`: a
+	 * label column floored at 76px so values line up across rows, and the 6px/16px
+	 * gap pair. The host sets the colour here and in `.details dt`; the grid
+	 * removes the per-row bottom margin the earlier version carried, because the
+	 * host spaces rows with the grid gap rather than margins.
+	 */
+	details: {
 		display: "grid",
-		gridTemplateColumns: "minmax(0, 1fr) max-content",
+		gridTemplateColumns: "minmax(76px, auto) minmax(0, 1fr)",
 		gap: "6px 16px",
-		marginBottom: 8,
+		margin: 0,
+		padding: 0,
+		color: "var(--dsw-alias-label-tertiary)",
 	},
-	dt: { minWidth: 0, margin: 0, overflowWrap: "anywhere" },
+	dt: { minWidth: 0, margin: 0 },
 	dd: {
 		minWidth: 0,
 		margin: 0,
@@ -593,13 +690,21 @@ const styles: StyleMap = {
 		textAlign: "right",
 	},
 	reset: { color: "var(--dsw-alias-label-tertiary)" },
+	/**
+	 * The meter track, from the host's `ContextMeter.module.css` `.bar`: an
+	 * interactive-bg-hover rail with a rounded, corner-shaped 4px segment. The
+	 * segment is `flex: none` with a 2px floor so a tiny percentage still shows.
+	 */
 	bar: {
 		gridColumn: "1 / -1",
+		display: "flex",
+		gap: 1,
+		margin: "0 0 6px",
 		height: 4,
-		borderRadius: 2,
+		borderRadius: 999,
 		overflow: "hidden",
-		background: "var(--dsw-alias-border-l2)",
-		marginBottom: 2,
+		background: "var(--dsw-alias-interactive-bg-hover)",
 	},
-	barFill: { height: "100%", borderRadius: 2 },
+	barFill: { height: "100%", flex: "none", minWidth: 2, borderRadius: 1 },
+	extra: { marginTop: 6, color: "var(--dsw-alias-label-tertiary)" },
 };

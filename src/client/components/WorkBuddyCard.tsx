@@ -21,7 +21,6 @@ import {
 	authFileRadioStyle,
 	badgeStyle,
 	bodyStyle,
-	buttonStyle,
 	cardStyle,
 	checkRowStyle,
 	compactButtonStyle,
@@ -125,11 +124,9 @@ export function authFileReasonKey(reason: string | undefined): GrokBuildSettings
 	}
 }
 
-export interface WorkBuddyCardProps extends GrokBuildSettingsInjected {
-	onStartConversation?: (() => void) | undefined;
-}
+export type WorkBuddyCardProps = GrokBuildSettingsInjected;
 
-export function WorkBuddyCard({ t, onStartConversation }: WorkBuddyCardProps) {
+export function WorkBuddyCard({ t }: WorkBuddyCardProps) {
 	const [view, setView] = useState<WorkBuddyView | undefined>(undefined);
 	const [error, setError] = useState<string | undefined>(undefined);
 	const [busy, setBusy] = useState(false);
@@ -379,24 +376,6 @@ export function WorkBuddyCard({ t, onStartConversation }: WorkBuddyCardProps) {
 							)}
 							{view.creditsError === undefined ? null : <span style={errorStyle}>{view.creditsError}</span>}
 						</div>
-						{/* Per package, because the aggregate alone cannot show which one is
-						    running out. `remaining` is already the figure the user spends
-						    down, so a monthly package reads as its current cycle. */}
-						{view.credits === undefined || view.credits.packages.length === 0 ? null : (
-							<div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 4 }}>
-								{view.credits.packages.map((entry) => (
-									<span key={entry.dealName} style={hintStyle}>
-										{entry.packageName ?? entry.dealName}:{" "}
-										{t("workbuddyCreditsCycle", {
-											remaining: String(Math.round(entry.remaining)),
-											total: String(Math.round(entry.total)),
-										})}
-										{entry.monthly ? ` · ${t("workbuddyCreditsMonthly")}` : ""}
-										{entry.cycleEndTime === undefined ? "" : ` · ${entry.cycleEndTime}`}
-									</span>
-								))}
-							</div>
-						)}
 					</div>
 
 					{/* Daily check-in: an explicit user action, never a timer. */}
@@ -481,12 +460,6 @@ export function WorkBuddyCard({ t, onStartConversation }: WorkBuddyCardProps) {
 							))}
 						</ul>
 					</div>
-
-					{onStartConversation === undefined ? null : (
-						<button type="button" style={buttonStyle} onClick={onStartConversation}>
-							{t("opencodeGoStartConversation")}
-						</button>
-					)}
 				</>
 			)}
 		</div>

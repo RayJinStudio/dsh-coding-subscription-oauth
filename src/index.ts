@@ -97,6 +97,7 @@ import { WorkBuddyCredentialStore } from "./workbuddy-auth.ts";
 import { registerWorkBuddyRoutes } from "./workbuddy-routes.ts";
 import { WorkBuddySession } from "./workbuddy-session.ts";
 import { refreshWorkBuddyToken } from "./workbuddy-upstream.ts";
+import { createWorkBuddyUsageReader } from "./workbuddy-usage.ts";
 
 export type {
 	CodingOAuthParticipant,
@@ -357,6 +358,12 @@ export {
 	workbuddyModelHeaders,
 	workbuddyRefreshHeaders,
 } from "./workbuddy-upstream.ts";
+export type { WorkBuddyUsage, WorkBuddyUsageReader, WorkBuddyUsageReaderOptions } from "./workbuddy-usage.ts";
+export {
+	createWorkBuddyUsageReader,
+	DEFAULT_WORKBUDDY_USAGE_TIMEOUT_MS,
+	DEFAULT_WORKBUDDY_USAGE_TTL_MS,
+} from "./workbuddy-usage.ts";
 
 /** Stable Cordis plugin name. */
 export const name = "llm-grok-build-oauth";
@@ -660,10 +667,14 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	const kimiAuth = kimiAuthFromSession(kimi);
 	const usage = createCodexUsageReader({ auth: codexAuth });
 	const kimiUsage = createKimiUsageReader({ auth: kimiAuth });
+	// WorkBuddy's first-party credential needs no auth session, so the usage
+	// reader reads the same store the provider route does.
+	const workbuddyUsage = createWorkBuddyUsageReader({ store: workbuddy.store });
 	const codexModels = createCodexModelCapabilities({ auth: codexAuth });
 	invalidateOptionalAuthState = () => {
 		usage.clear();
 		kimiUsage.clear();
+		workbuddyUsage.clear();
 		codexModels.clear();
 		runtime.refresh();
 	};
@@ -846,6 +857,7 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 		() => opencodeGo.snapshot(),
 		() => usage.read(),
 		() => kimiUsage.read(),
+		() => workbuddyUsage.read(),
 	);
 	registerOAuthImportRoutes(ctx, oauthImportDestinations(grok, subscriptions), {
 		ownerRequestPolicy,

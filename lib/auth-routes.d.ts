@@ -168,5 +168,5 @@ export interface CodingOAuthWebStatus {
     };
 }
 /** Register the unified Coding OAuth API plus the compatibility Grok routes. */
-export declare function registerCodingOAuthRoutes(ctx: Context, grokSession: GrokBuildSession, subscriptionSessions: readonly OAuthProviderSession[], ownerRequestPolicy?: OwnerRequestPolicy, compatibility?: (accessMode: OwnerAccessMode) => DshCompatibility, opencodeGoStatus?: () => CodingOAuthWebStatus["opencodeGo"], usageReader?: () => unknown | Promise<unknown>, kimiUsageReader?: () => unknown | Promise<unknown>): void;
+export declare function registerCodingOAuthRoutes(ctx: Context, grokSession: GrokBuildSession, subscriptionSessions: readonly OAuthProviderSession[], ownerRequestPolicy?: OwnerRequestPolicy, compatibility?: (accessMode: OwnerAccessMode) => DshCompatibility, opencodeGoStatus?: () => CodingOAuthWebStatus["opencodeGo"], usageReader?: () => unknown | Promise<unknown>, kimiUsageReader?: () => unknown | Promise<unknown>, workbuddyUsageReader?: () => unknown | Promise<unknown>): void;
 //# sourceMappingURL=auth-routes.d.ts.map

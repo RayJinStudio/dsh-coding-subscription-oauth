@@ -46,6 +46,8 @@ export type { WorkBuddyCatalogSource, WorkBuddyContextBudget } from "./workbuddy
 export { WORKBUDDY_MODELS_CACHE_FILENAME, WorkBuddySession, workbuddyModelsCachePath } from "./workbuddy-session.js";
 export type { WorkBuddyCheckinClaim, WorkBuddyCheckinStatus, WorkBuddyCreditPackage, WorkBuddyCredits, WorkBuddyErrorKind, WorkBuddyModelInfo, WorkBuddyReasoning, } from "./workbuddy-upstream.js";
 export { claimWorkBuddyCheckin, classifyWorkBuddyError, fetchWorkBuddyCatalog, fetchWorkBuddyCheckinStatus, fetchWorkBuddyCredits, parseWorkBuddyCreditMultiplier, parseWorkBuddyModel, parseWorkBuddyReasoning, prepareWorkBuddyChatBody, refreshWorkBuddyToken, selectWorkBuddyRoster, WORKBUDDY_CHAT_PATH, WORKBUDDY_CHECKIN_CLAIM_PATH, WORKBUDDY_CHECKIN_STATUS_PATH, WORKBUDDY_CREDITS_PATH, WORKBUDDY_FALLBACK_SYSTEM_PROMPT, WORKBUDDY_REFRESH_PATH, WorkBuddyUpstreamError, workbuddyBillingBase, workbuddyBillingHeaders, workbuddyChatBase, workbuddyChatHeaders, workbuddyCheckinSupported, workbuddyGlobalBase, workbuddyModelHeaders, workbuddyRefreshHeaders, } from "./workbuddy-upstream.js";
+export type { WorkBuddyUsage, WorkBuddyUsageReader, WorkBuddyUsageReaderOptions } from "./workbuddy-usage.js";
+export { createWorkBuddyUsageReader, DEFAULT_WORKBUDDY_USAGE_TIMEOUT_MS, DEFAULT_WORKBUDDY_USAGE_TTL_MS, } from "./workbuddy-usage.js";
 /** Stable Cordis plugin name. */
 export declare const name = "llm-grok-build-oauth";
 /** Separate API-key credential used only by official xAI Imagine REST calls. */

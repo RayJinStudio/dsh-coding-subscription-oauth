@@ -9,6 +9,7 @@
  * Only the members the badge imports are provided; anything else a future
  * client component needs must be added explicitly.
  */
+import { createElement } from "react";
 
 /** Test stand-in: no anchoring in jsdom, the panel keeps its measure style. */
 export const useAnchoredPosition = () => null;
@@ -16,5 +17,18 @@ export const useAnchoredPosition = () => null;
 /** Test stand-in: jsdom tests never assert outside-pointer dismissal. */
 export const useDismissOnOutsidePointer = () => undefined;
 
-/** Test stand-in: the host glyph renders nothing. */
-export const IconDataOutlineRegular = () => null;
+/**
+ * Test stand-in for one host glyph.
+ *
+ * Renders a real `<svg>` carrying `width`/`height`, so a spec can assert the
+ * size the badge passes. It deliberately mirrors the host's prop handling: the
+ * real artwork destructures exactly `size`, `className`, and `strokeWidth`, so a
+ * `style` prop is DISCARDED. Reproducing that here is what caught the badge
+ * passing `style={{ flex: "none" }}` to a component that silently ignored it.
+ */
+function glyph({ size = 16, className }) {
+	return createElement("svg", { width: size, height: size, className, "aria-hidden": true });
+}
+
+export const IconDataOutlineRegular = glyph;
+export const IconDataOutline16 = glyph;

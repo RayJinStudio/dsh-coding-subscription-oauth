@@ -13,6 +13,7 @@ import {
 	SUBSCRIPTION_USAGE_PATH,
 	CODEX_USAGE_PATH,
 	KIMI_USAGE_PATH,
+	WORKBUDDY_ROUTE,
 } from "../src/client/constants.ts";
 import { SubscriptionUsageBadge, providerKeyOf } from "../src/client/SubscriptionUsageBadge.tsx";
 
@@ -193,11 +194,134 @@ it("follows the selected model when both subscriptions report usage", async () =
 	expect(codexPill.textContent).not.toContain("Kimi");
 });
 
+it("renders the WorkBuddy pill as one line: provider then remaining credits", async () => {
+	const requested = stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				workbuddy: {
+					supported: true,
+					usage: { account: "19705040086", region: "cn", totalCount: 10, totalRemaining: 2630, fetchedAt: 1 },
+				},
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }));
+	const pill = await screen.findByRole("button", { name: /Subscription usage · WorkBuddy 2630 credits/u });
+	expect(pill.textContent).toBe("WorkBuddy 2630 credits");
+	// A credit balance has no percentage: a bar would have to invent a denominator.
+	expect(pill.textContent).not.toContain("%");
+	expect(requested).toEqual([SUBSCRIPTION_USAGE_PATH]);
+});
+
+it("badges the reference plugin's bare workbuddy route too", async () => {
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				workbuddy: { supported: true, usage: { account: "Buddy", totalRemaining: 42, fetchedAt: 1 } },
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel("workbuddy", "deepseek-v4.1-flash") }));
+	const pill = await screen.findByRole("button", { name: /Subscription usage · WorkBuddy 42 credits/u });
+	expect(pill.textContent).toBe("WorkBuddy 42 credits");
+});
+
+it("sizes the pill glyph at 14px, like the host's own composer pills", async () => {
+	// The host pins every stat-pill glyph to 14px via CSS
+	// (`ui-chat/StatsPills.module.css` `.pill svg { width/height: 14px }`), but
+	// those rules only match pills carrying its own CSS-module class. This badge
+	// styles inline, so it must pass the size itself: the host glyph's own
+	// default is 16px, which is what made the badge read larger than its
+	// neighbours in the same row.
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				workbuddy: { supported: true, usage: { account: "Buddy", totalRemaining: 2630, fetchedAt: 1 } },
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }));
+	const pill = await screen.findByRole("button", { name: /WorkBuddy 2630 credits/u });
+	const glyph = pill.querySelector("svg");
+	expect(glyph?.getAttribute("width")).toBe("14");
+	expect(glyph?.getAttribute("height")).toBe("14");
+});
+
+it("renders only the selected model's provider in the panel", async () => {
+	// Regression: the panel used to enumerate every connected provider, so a
+	// WorkBuddy conversation also rendered the Codex and Kimi quotas.
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: true, usage: codexPayload },
+				kimi: { supported: true, usage: kimiPayload },
+				workbuddy: { supported: true, usage: { account: "19705040086", totalRemaining: 2630, fetchedAt: 1 } },
+			},
+		},
+	});
+	const { container } = render(
+		createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }),
+	);
+	const pill = await screen.findByRole("button", { name: /WorkBuddy 2630 credits/u });
+	pill.click();
+	// The panel portals to `document.body` and stays `visibility: hidden` in jsdom
+	// until it has been measured, so it is queried as a DOM node rather than by
+	// accessible role.
+	const panel = await waitFor(() => {
+		const found = container.ownerDocument.querySelector<HTMLElement>('[role="dialog"]');
+		expect(found).not.toBeNull();
+		return found as HTMLElement;
+	});
+	expect(panel.textContent).toContain("WorkBuddy");
+	expect(panel.textContent).toContain("2630 credits");
+	// The other two providers are connected but must not appear.
+	expect(panel.textContent).not.toContain("Codex");
+	expect(panel.textContent).not.toContain("Kimi");
+	expect(container.ownerDocument.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+});
+
+it("hides WorkBuddy when the account is signed out", async () => {
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				workbuddy: { supported: false },
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }));
+	await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+});
+
+it("ignores a malformed WorkBuddy share instead of rendering NaN credits", async () => {
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				// `totalRemaining` absent / non-numeric: the projection is unusable.
+				workbuddy: { supported: true, usage: { account: "Buddy", totalRemaining: "lots" } },
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }));
+	await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+});
+
 it("maps every supported route id onto its provider key", () => {
 	expect(providerKeyOf("codex-oauth")).toBe("codex");
 	expect(providerKeyOf("openai-codex")).toBe("codex");
 	expect(providerKeyOf("kimi-code-oauth")).toBe("kimi");
 	expect(providerKeyOf("kimi-coding")).toBe("kimi");
+	expect(providerKeyOf(WORKBUDDY_ROUTE)).toBe("workbuddy");
+	expect(providerKeyOf("workbuddy")).toBe("workbuddy");
 	expect(providerKeyOf("grok-build")).toBeUndefined();
 	expect(providerKeyOf("deepseek-account")).toBeUndefined();
 	expect(providerKeyOf(undefined)).toBeUndefined();

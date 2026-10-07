@@ -53,6 +53,17 @@ export const SEARCH_PROVIDER_PATH = "/plugins/dsh-grok-build/web/search-provider
 export const WORKBUDDY_STATUS_PATH = "/plugins/dsh-grok-build/workbuddy/status";
 export const WORKBUDDY_CHECKIN_PATH = "/plugins/dsh-grok-build/workbuddy/checkin";
 export const WORKBUDDY_MODELS_PATH = "/plugins/dsh-grok-build/workbuddy/models";
+/**
+ * The WorkBuddy pi-ai route id, which is also the id the model selector reports
+ * as the selected model's `provider`.
+ *
+ * Declared here rather than imported from `src/ids.ts`: that module re-exports
+ * `dsh-coding-oauth-core`'s root entry, which pulls `undici` and therefore Node
+ * builtins, and the browser bundle cannot resolve them (the client build fails
+ * with "Could not resolve node:assert"). `tests/client-coinstall.spec.ts` pins
+ * this literal against the server's `WORKBUDDY_ROUTE` so the two cannot drift.
+ */
+export const WORKBUDDY_ROUTE = "workbuddy-oauth";
 export const GATEWAY_PATH = GATEWAY_SETTINGS_PATH;
 export const GATEWAY_REVEAL_PATH = CORE_GATEWAY_REVEAL_PATH;
 export const GATEWAY_ROTATE_PATH = CORE_GATEWAY_ROTATE_PATH;

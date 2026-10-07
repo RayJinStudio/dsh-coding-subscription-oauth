@@ -189,19 +189,17 @@ describe("WorkBuddyCard", () => {
 		expect((offBox as HTMLInputElement).disabled).toBe(false);
 	});
 
-	it("renders the REMAINING credit per package, monthly rows included", async () => {
+	it("renders the REMAINING credit, and no per-package list", async () => {
 		// Regression: a monthly package's package-level `CapacityRemain` stays at the
-		// full allocation, so reading it made the card show the TOTAL credit. The
-		// upstream plugin now reports the cycle figure as `remaining`, and every
-		// package is listed because the aggregate alone cannot say which is running
-		// out. Interpolating `t` is required here: the card asserts on the numbers,
-		// and the default test `t` returns the raw template.
+		// full allocation, so reading it made the card show the TOTAL credit (1571
+		// here) instead of the REMAINING one. Interpolating `t` is required: the card
+		// asserts on the numbers, and the default test `t` returns the raw template.
 		const interpolating = (key: keyof typeof en, params?: Record<string, unknown>): string =>
 			en[key].replace(/\{(\w+)\}/gu, (_match, name: string) => String(params?.[name] ?? `{${name}}`));
 		const payload = view({
 			credits: {
 				totalCount: 2,
-				totalRemaining: 1571,
+				totalRemaining: 1071,
 				packages: [
 					{
 						accountId: 1,
@@ -220,8 +218,8 @@ describe("WorkBuddyCard", () => {
 						packageName: "Gift pack",
 						capacityType: 1,
 						capacityUnit: "credits",
-						remaining: 1500,
-						total: 1500,
+						remaining: 1000,
+						total: 1000,
 						monthly: false,
 					},
 				],
@@ -236,11 +234,11 @@ describe("WorkBuddyCard", () => {
 				t: interpolating as unknown as typeof t,
 			}),
 		);
-		await screen.findByText(/CodeBuddy personal/u);
-		// The monthly row shows its CYCLE remainder, not the untouched 500 allocation.
-		expect(screen.getByText(/^CodeBuddy personal: 71 \/ 500 · this cycle/u)).toBeTruthy();
-		expect(screen.getByText(/^Gift pack: 1500 \/ 1500/u)).toBeTruthy();
-		expect(screen.getByText("Remaining credits: 1571 credits left across 2 package(s)")).toBeTruthy();
+		await screen.findByText("Remaining credits: 1071 credits left across 2 package(s)");
+		// The per-package breakdown was removed: ten near-identical gift rows pushed
+		// the models section off-screen while saying nothing the aggregate did not.
+		expect(screen.queryByText(/^CodeBuddy personal:/u)).toBeNull();
+		expect(screen.queryByText(/^Gift pack:/u)).toBeNull();
 	});
 
 	it("lists discovered auth files as cards, by account and role rather than by path", async () => {

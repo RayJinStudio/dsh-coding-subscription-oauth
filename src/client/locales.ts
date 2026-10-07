@@ -261,7 +261,7 @@ export const en = {
 	usageBadgeDisplayHint:
 		"Saved automatically in this browser. The status bar shows the subscription behind the selected model, and nothing while that model is not part of a supported subscription. Hiding does not affect usage details here.",
 	usageBadgeDisplaySaveFailed: "Could not save the display preference. Check browser storage permissions.",
-	usageBadgeCurrent: "current",
+	usageWorkbuddyCredits: "{credits} credits",
 	usageBadgeModelCount: "{count} model quotas",
 	usageBadgeModelUnavailable: "Current model quota unavailable",
 	usageBadgeMoreWindows: "More quota windows ({count})",
@@ -438,8 +438,6 @@ export const en = {
 	workbuddyCheckinAlready: "Already checked in today",
 	workbuddyCredits: "Remaining credits",
 	workbuddyCreditsTotal: "{remaining} credits left across {count} package(s)",
-	workbuddyCreditsCycle: "{remaining} / {total}",
-	workbuddyCreditsMonthly: "this cycle",
 	workbuddyAuthFile: "Credential file",
 	workbuddyAuthFileHint:
 		"Every auth file found on this machine. Pick the one holding the account to use, or keep the platform defaults.",
@@ -722,7 +720,7 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	usageBadgeDisplayHint:
 		"自动保存到当前浏览器。状态栏按当前所选模型显示它所属订阅的用量；模型不属于已支持的订阅时不显示。关闭不影响本页的额度详情。",
 	usageBadgeDisplaySaveFailed: "显示设置保存失败，请检查浏览器存储权限。",
-	usageBadgeCurrent: "当前",
+	usageWorkbuddyCredits: "{credits}积分",
 	usageBadgeModelCount: "{count} 个模型配额",
 	usageBadgeModelUnavailable: "当前模型暂无配额数据",
 	usageBadgeMoreWindows: "更多配额窗口（{count}）",
@@ -891,8 +889,6 @@ export const zh: { [Key in GrokBuildSettingsKey]: string } = {
 	workbuddyCheckinAlready: "今天已经签到过了",
 	workbuddyCredits: "剩余积分",
 	workbuddyCreditsTotal: "剩余 {remaining} 积分（{count} 个套餐）",
-	workbuddyCreditsCycle: "{remaining} / {total}",
-	workbuddyCreditsMonthly: "本周期",
 	workbuddyAuthFile: "认证文件",
 	workbuddyAuthFileHint: "本机找到的全部认证文件。选择要使用的账号所在文件，或保留平台默认位置。",
 	workbuddyAuthFileDefault: "使用平台默认位置",

@@ -412,7 +412,7 @@ export function AccountsTab({
 						</Fragment>
 					);
 				})}
-				{selectedProvider === "workbuddy" ? <WorkBuddyCard t={t} onStartConversation={onStartConversation} /> : null}
+				{selectedProvider === "workbuddy" ? <WorkBuddyCard t={t} /> : null}
 				{selectedProvider === "antigravity" ? (
 					<div style={cardStyle}>
 						<div style={rowStyle}>
