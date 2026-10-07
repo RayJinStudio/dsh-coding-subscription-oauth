@@ -253,6 +253,26 @@ it("sizes the pill glyph at 14px, like the host's own composer pills", async () 
 	expect(glyph?.getAttribute("height")).toBe("14");
 });
 
+it("carries no native hover tooltip on the pill", async () => {
+	// Regression: `title` renders the browser's own tooltip box, which the host's
+	// pills deliberately avoid (ui-chat/StatsPills.tsx sets only `aria-label`).
+	// The dialog already names itself, so the extra box was pure noise.
+	stubFetch({
+		[SUBSCRIPTION_USAGE_PATH]: {
+			providers: {
+				codex: { supported: false },
+				kimi: { supported: false },
+				workbuddy: { supported: true, usage: { account: "Buddy", totalRemaining: 2630, fetchedAt: 1 } },
+			},
+		},
+	});
+	render(createElement(SubscriptionUsageBadge, { currentModel: selectsModel(WORKBUDDY_ROUTE, "deepseek-v4.1-flash") }));
+	const pill = await screen.findByRole("button", { name: /WorkBuddy 2630 credits/u });
+	expect(pill.getAttribute("title")).toBeNull();
+	// The accessible name still identifies the control.
+	expect(pill.getAttribute("aria-label")).toBe("Subscription usage · WorkBuddy 2630 credits");
+});
+
 it("renders only the selected model's provider in the panel", async () => {
 	// Regression: the panel used to enumerate every connected provider, so a
 	// WorkBuddy conversation also rendered the Codex and Kimi quotas.

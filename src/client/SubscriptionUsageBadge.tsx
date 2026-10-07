@@ -12,30 +12,16 @@ import { parseUsage } from "./parsers.ts";
 import type { UsageView } from "./types.ts";
 import { useUsageBadgeMode } from "./usage-badge-preferences.ts";
 
-/**
- * The badge's glyph, sized like the host's own composer pills.
- *
- * DSH renders every stat pill's icon at a forced 14px
- * (`StatsPills.module.css` `.pill svg`, `stat-dialog.module.css` `.titleLabel
- * svg`). The host glyph's own default is 16px, so leaving it unset made this
- * badge read larger than the pills beside it; the size is passed explicitly
- * because this plugin styles inline and has no CSS module to hang the rule on.
- */
+/** A host glyph that accepts an explicit square edge. */
 export type IconComponent = ComponentType<{ style?: CSSProperties; size?: number }>;
 
 const USAGE_ICON_SIZE = 14;
 const UsageBadgeIcon = hostIcon(primitives, "DataOutline") as unknown as IconComponent;
 
 /**
- * The pill and dialog glyph: 14px, as the host's own `svg` rules render.
- *
- * `size` is passed explicitly because the host glyph's own default is 16px and
- * the host's `svg { width/height: 14px }` rule only matches pills carrying its
- * CSS-module class, which this inline-styled badge does not.
- *
- * The glyph DROPS a `style` prop (its artwork destructures only `size`,
- * `className`, and `strokeWidth`), so the non-shrinking rule that the host
- * applies via `.pill svg { flex: none }` has to sit on a wrapper element here.
+ * 14px, matching `StatsPills.module.css` `.pill svg`. The host glyph defaults to
+ * 16px and ignores a `style` prop, so the size rides the prop and the
+ * non-shrinking rule rides this wrapper.
  */
 function BadgeIcon() {
 	return (
@@ -482,7 +468,6 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				aria-label={`${title} · ${label}`}
-				title={title}
 				onMouseEnter={() => setHover(true)}
 				onMouseLeave={() => setHover(false)}
 				onClick={toggle}
@@ -500,17 +485,13 @@ export function SubscriptionUsageBadge({ currentModel, t }: SubscriptionUsageBad
 							</span>
 						</div>
 						<div style={styles.titleRule} aria-hidden />
-						{/* Only the subscription behind the CURRENT model. The badge answers
-						    "what is this conversation spending", so listing every connected
-						    provider made the panel long and buried the one that mattered. */}
 						<div style={styles.providerRow}>
 							<span style={styles.providerName}>{activeDisplay.name}</span>
 						</div>
 						{activeDisplay.accounts.map((account) => (
 							<div key={account.key} style={styles.accountBlock}>
-								{/* A credit-balance provider has no rate-limit windows, and a
-								    `0%` bar would misread as "exhausted"; it shows the
-								    account and the remaining figure instead. */}
+								{/* No bar: a credit balance has no denominator, so `0%` would
+								    read as "exhausted". */}
 								{account.creditValue === undefined ? null : (
 									<dl style={styles.details}>
 										<dt style={styles.dt}>{account.account ?? translate("workbuddyAccount")}</dt>
@@ -574,14 +555,9 @@ type StyleMap = Record<string, CSSProperties & Record<`--${string}`, string>>;
 const styles: StyleMap = {
 	seat: { display: "none" },
 	/**
-	 * Anchor and pill typography copied from the host's own composer pills
-	 * (`ui-chat/StatsPills.module.css`): the anchor carries the 12px/20px text
-	 * tier and the pill inherits it (`font: inherit`, `line-height: inherit`).
-	 *
-	 * The size is `--dsh-content-font-size-secondary` MINUS 1px, matching DSH's
-	 * `calc(var(--dsh-content-font-size-secondary, 13px) - 1px)`. It must be set
-	 * on the anchor rather than the pill so the portaled panel, which hangs off
-	 * the same subtree, is unaffected -- the panel sets its own 12/18.
+	 * The host's stat-pill text tier: `StatsPills.module.css` puts the size and
+	 * line height on the anchor and lets the pill inherit both. The panel sets
+	 * its own 12/18, so this must stay off the portal subtree.
 	 */
 	anchor: {
 		minWidth: 0,
@@ -666,13 +642,7 @@ const styles: StyleMap = {
 		gap: 6,
 	},
 	accountBlock: { marginTop: 8 },
-	/**
-	 * Row grid copied from the host's `stat-dialog.module.css` `.details`: a
-	 * label column floored at 76px so values line up across rows, and the 6px/16px
-	 * gap pair. The host sets the colour here and in `.details dt`; the grid
-	 * removes the per-row bottom margin the earlier version carried, because the
-	 * host spaces rows with the grid gap rather than margins.
-	 */
+	/** The host's `stat-dialog.module.css` `.details` grid. Rows are direct children. */
 	details: {
 		display: "grid",
 		gridTemplateColumns: "minmax(76px, auto) minmax(0, 1fr)",
@@ -690,11 +660,7 @@ const styles: StyleMap = {
 		textAlign: "right",
 	},
 	reset: { color: "var(--dsw-alias-label-tertiary)" },
-	/**
-	 * The meter track, from the host's `ContextMeter.module.css` `.bar`: an
-	 * interactive-bg-hover rail with a rounded, corner-shaped 4px segment. The
-	 * segment is `flex: none` with a 2px floor so a tiny percentage still shows.
-	 */
+	/** The host's `ContextMeter.module.css` `.bar`. */
 	bar: {
 		gridColumn: "1 / -1",
 		display: "flex",
