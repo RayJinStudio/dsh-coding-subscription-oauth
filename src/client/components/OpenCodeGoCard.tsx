@@ -4,6 +4,17 @@ import { OPENCODE_GO_CONNECTION_PATH } from "../constants.ts";
 import type { GrokBuildSettingsKey } from "../locales.ts";
 import type { CodingOAuthStatus, GrokBuildSettingsInjected } from "../types.ts";
 import { type GoModel, type GoSnapshot, OpenCodeGoConnectionView } from "./OpenCodeGoConnectionView.tsx";
+import { OpenCodeZenSection, type ZenViewKey } from "./OpenCodeZenSection.tsx";
+
+/**
+ * One card for both OpenCode products.
+ *
+ * Go and Zen are the same vendor and the same operator decision, so they are
+ * presented together rather than as two provider entries: Go is the
+ * subscription-backed agent endpoint, Zen is the pay-per-use model gateway.
+ * They stay separate ROUTES underneath — Go names one protocol, Zen spans
+ * several — because that difference is real and cannot be merged away.
+ */
 export function OpenCodeGoCard({
 	t,
 	fallback,
@@ -44,34 +55,40 @@ export function OpenCodeGoCard({
 	}, [reload]);
 	const call = (fallback.updatedAt ?? 0) >= (status?.call.updatedAt ?? 0) ? fallback : status?.call;
 	return (
-		<OpenCodeGoConnectionView
-			status={status}
-			{...(call ? { call } : {})}
-			{...(error ? { loadError: error } : {})}
-			t={(key, params) =>
-				t(
-					(key.startsWith("status.")
-						? "opencodeGoStatus." + key.slice(7)
-						: "opencodeGo" + key[0]!.toUpperCase() + key.slice(1)) as GrokBuildSettingsKey,
-					params,
-				)
-			}
-			onReload={reload}
-			onSaveCredential={async (input) =>
-				accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "credential", ...input }))
-			}
-			onLoadModels={(ref) =>
-				jsonRequest<{ status: GoSnapshot; models: GoModel[] }>(
-					`${OPENCODE_GO_CONNECTION_PATH}?models=1&credentialRef=${encodeURIComponent(ref)}`,
-				)
-			}
-			onApply={async (input) =>
-				accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "apply", ...input }))
-			}
-			onMigrateLegacy={async (input) =>
-				accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "migrate", ...input }))
-			}
-			onStartConversation={onStartConversation}
-		/>
+		<div style={{ display: "flex", flexDirection: "column", gap: 14, width: "100%" }}>
+			<OpenCodeGoConnectionView
+				status={status}
+				{...(call ? { call } : {})}
+				{...(error ? { loadError: error } : {})}
+				t={(key, params) =>
+					t(
+						(key.startsWith("status.")
+							? `opencodeGoStatus.${key.slice(7)}`
+							: `opencodeGo${key[0]!.toUpperCase()}${key.slice(1)}`) as GrokBuildSettingsKey,
+						params,
+					)
+				}
+				onReload={reload}
+				onSaveCredential={async (input) =>
+					accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "credential", ...input }))
+				}
+				onClearCredential={async (input) =>
+					accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "clear", ...input }))
+				}
+				onLoadModels={(ref) =>
+					jsonRequest<{ status: GoSnapshot; models: GoModel[] }>(
+						`${OPENCODE_GO_CONNECTION_PATH}?models=1&credentialRef=${encodeURIComponent(ref)}`,
+					)
+				}
+				onApply={async (input) =>
+					accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "apply", ...input }))
+				}
+				onMigrateLegacy={async (input) =>
+					accept(await jsonRequest<GoSnapshot>(OPENCODE_GO_CONNECTION_PATH, "POST", { action: "migrate", ...input }))
+				}
+				onStartConversation={onStartConversation}
+			/>
+			<OpenCodeZenSection t={(key: ZenViewKey, params) => t(key as GrokBuildSettingsKey, params)} />
+		</div>
 	);
 }

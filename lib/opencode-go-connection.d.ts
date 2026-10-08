@@ -141,6 +141,55 @@ export declare function createOpenCodeGoConnectionController(options: Options): 
         call: OpenCodeGoStatus;
     }>;
     /**
+     * Delete the stored OpenCode Go key.
+     *
+     * Removes the value from the credential store rather than writing a blank:
+     * an empty stored value is "absent" seam-wide, but leaving the record
+     * behind would keep reporting a configured reference while resolution
+     * silently failed.
+     *
+     * The `llm-pi-ai` provider entry is removed as well. A keyless entry is
+     * not a neutral state: pi-ai still resolves the route and then fails
+     * requests, so the route must disappear from the model picker until a key
+     * is configured again. The credential reference keeps naming WHICH
+     * environment slot a future key belongs to, so re-entering one lands in
+     * the same place.
+     */
+    clearCredential(input: {
+        credentialRef: string;
+    }): Promise<{
+        providerId: "coding-opencode-go";
+        credential: {
+            selectedRef: string;
+            configured: boolean;
+            writable: boolean;
+            source: string | null;
+            requiresChoice: boolean;
+            candidates: {
+                ref: string;
+                configured: boolean;
+                writable: boolean;
+                source: string | null;
+            }[];
+        };
+        configuration: {
+            revision: number | null;
+            writable: boolean;
+            api: string | null;
+            baseURL: string | null;
+            models: OpenCodeGoModel[];
+            ready: boolean;
+            conflicts: ("protocol" | "base-url" | "static-session-header")[];
+        };
+        legacy: {
+            providerId: "opencode-go";
+            present: boolean;
+            migratable: boolean;
+            targetProviderId: "coding-opencode-go";
+        };
+        call: OpenCodeGoStatus;
+    }>;
+    /**
      * If DSH model settings created/updated the isolated plugin provider
      * without `apiKeyEnv`, reinject the selected configured credential reference.
      */

@@ -59,6 +59,7 @@ export {
 } from "dsh-coding-oauth-core";
 
 import { CODING_OAUTH_ROUTES } from "dsh-coding-oauth-core";
+import { OPENCODE_ZEN_PROVIDER_ID } from "./opencode-zen-ids.ts";
 
 /** Multi-account mutations (peer core contracts do not list these yet). */
 export const CODING_OAUTH_API_BASE = "/plugins/dsh-grok-build" as const;
@@ -83,13 +84,24 @@ export const CODING_OAUTH_API_BASE = "/plugins/dsh-grok-build" as const;
 export const WORKBUDDY_ROUTE = "workbuddy-oauth" as const;
 
 /**
+ * OpenCode Zen route served by this plugin's own multi-protocol provider.
+ *
+ * Aliased to the Zen id module's constant so the adapter, the route list here,
+ * and the settings card cannot drift. Deliberately NOT pi-ai's builtin
+ * `opencode` id: DSH mounts that route from the installed catalogue, and
+ * `registerAdapter` is all-or-nothing, so claiming it would withdraw this
+ * plugin's unrelated routes.
+ */
+export const OPENCODE_ZEN_ROUTE = OPENCODE_ZEN_PROVIDER_ID;
+
+/**
  * Every route this plugin's LLM adapter serves, in registration order.
  *
  * Exists because the optional Codex Fast route is published by REPLACING the
  * whole route list, so any route missing from that list is silently withdrawn
  * the first time Fast eligibility is reconciled.
  */
-export const CODING_OAUTH_ALL_ROUTES: readonly string[] = [...CODING_OAUTH_ROUTES, WORKBUDDY_ROUTE];
+export const CODING_OAUTH_ALL_ROUTES: readonly string[] = [...CODING_OAUTH_ROUTES, WORKBUDDY_ROUTE, OPENCODE_ZEN_ROUTE];
 
 export const CODING_OAUTH_ACCOUNTS_SET_ACTIVE_PATH = `${CODING_OAUTH_API_BASE}/oauth/accounts/set-active` as const;
 export const CODING_OAUTH_ACCOUNTS_REMOVE_PATH = `${CODING_OAUTH_API_BASE}/oauth/accounts/remove` as const;

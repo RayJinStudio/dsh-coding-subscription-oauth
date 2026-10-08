@@ -5,6 +5,7 @@ import type { RetryPolicyConfig } from "@deepseek-ai/dsh-llm";
 import { type LlmAdapter, LlmError, resolveRetryPolicy } from "@deepseek-ai/dsh-llm";
 import type { PiAiAdapterOptions, ResolvedPiAiProviderProfile } from "@deepseek-ai/dsh-llm-pi-ai";
 import { PiAiAdapter } from "@deepseek-ai/dsh-llm-pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { AliasLlmRoutePolicy } from "./alias-adapter.ts";
 import { AliasLlmAdapter } from "./alias-adapter.ts";
 import { preferredGrokBuildModelFrom } from "./catalog.ts";
@@ -20,10 +21,12 @@ import {
 	GROK_BUILD_STREAM_IDLE_TIMEOUT_MS,
 	KIMI_CODE_OAUTH_ROUTE,
 	KIMI_PI_PROVIDER,
+	OPENCODE_ZEN_ROUTE,
 	WORKBUDDY_ROUTE,
 	XAI_PI_PROVIDER,
 } from "./ids.ts";
 import type { OAuthProviderSession } from "./oauth-session.ts";
+import { OPENCODE_ZEN_DISPLAY_NAME, opencodeZenProvider } from "./opencode-zen-provider.ts";
 import { grokBuildBaselineModels, grokBuildFingerprintHeaders } from "./provider.ts";
 import { safeMessage } from "./redact.ts";
 import type { GrokBuildSession } from "./session.ts";
@@ -190,6 +193,20 @@ export interface CodingOAuthAdapterOptions {
 	 * refresh, the live roster and the per-model context budgets.
 	 */
 	workbuddy?: WorkBuddySession;
+	/**
+	 * OpenCode Zen, when the route should be served.
+	 *
+	 * Not an OAuth login either: the credential is a Zen API key the operator
+	 * stores through the credentials service. `models` is a live closure because
+	 * the enabled set is settings-card state, and the route serves whatever
+	 * protocols the enabled models name — that is what
+	 * {@link opencodeZenProvider} exists for, since DSH settings can only name
+	 * one protocol per route.
+	 */
+	opencodeZen?: {
+		models: () => readonly Model<Api>[];
+		resolveApiKey: () => Promise<string | undefined>;
+	};
 }
 
 function isRetryPolicyConfig(value: object): value is RetryPolicyConfig {
@@ -212,6 +229,7 @@ function splitCodingOAuthAdapterArgs(
 		...(fourth.retryPolicy === undefined ? {} : { retryPolicy: fourth.retryPolicy }),
 		...(fourth.codexFast === undefined ? {} : { codexFast: fourth.codexFast }),
 		...(fourth.workbuddy === undefined ? {} : { workbuddy: fourth.workbuddy }),
+		...(fourth.opencodeZen === undefined ? {} : { opencodeZen: fourth.opencodeZen }),
 	};
 }
 
@@ -236,7 +254,7 @@ export function createCodingOAuthAdapter(
 	retryPolicyOrOptions?: RetryPolicyConfig | CodingOAuthAdapterOptions,
 	options?: CodingOAuthAdapterOptions,
 ): LlmAdapter {
-	const { retryPolicy, codexFast, workbuddy } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
+	const { retryPolicy, codexFast, workbuddy, opencodeZen } = splitCodingOAuthAdapterArgs(retryPolicyOrOptions, options);
 	const byNativeId = new Map(subscriptions.map((session) => [session.definition.nativeProviderId, session]));
 	const codexSession = byNativeId.get(CODEX_PI_PROVIDER);
 	const aliases = new Map<string, string>([
@@ -253,6 +271,11 @@ export function createCodingOAuthAdapter(
 		// are for Grok Build: the model descriptors carry `provider: WORKBUDDY_ROUTE`,
 		// and the profile map is keyed by that same id.
 		aliases.set(WORKBUDDY_ROUTE, WORKBUDDY_ROUTE);
+	}
+	if (opencodeZen !== undefined) {
+		// Same identity rule as WorkBuddy and Grok Build: the descriptor's
+		// `provider` and the profile-map key are one string, so alias it to itself.
+		aliases.set(OPENCODE_ZEN_ROUTE, OPENCODE_ZEN_ROUTE);
 	}
 	const policies = new Map<string, AliasLlmRoutePolicy>([
 		[
@@ -286,6 +309,18 @@ export function createCodingOAuthAdapter(
 			// can read a usable credential", never a login this plugin performed.
 			isAuthenticated: async () => (await workbuddy.store.status()).state === "signed-in",
 			onAuthFailure: () => workbuddy.store.invalidateAccessToken(),
+		});
+	}
+	if (opencodeZen !== undefined) {
+		policies.set(OPENCODE_ZEN_ROUTE, {
+			displayName: OPENCODE_ZEN_DISPLAY_NAME,
+			// A Zen API key is stored through the credentials service rather than a
+			// login this plugin runs, so "authenticated" means "a key resolves".
+			isAuthenticated: async () => (await opencodeZen.resolveApiKey()) !== undefined,
+			// There is no refresh to invalidate: the key is long-lived and the
+			// operator replaces it in the card. A 401 therefore surfaces as an auth
+			// failure without pretending a silent renewal happened.
+			onAuthFailure: async () => undefined,
 		});
 	}
 
@@ -352,6 +387,21 @@ export function createCodingOAuthAdapter(
 					),
 				);
 			}
+			if (opencodeZen !== undefined) {
+				// The provider is built with a multi-protocol `api` map, which is the
+				// only way one route can serve the protocols a Zen account spans:
+				// DSH settings name a single protocol per route and ignore a per-model
+				// one, so a settings-declared route could never hold a mixed selection.
+				profiles.set(
+					OPENCODE_ZEN_ROUTE,
+					profile(
+						OPENCODE_ZEN_ROUTE,
+						OPENCODE_ZEN_DISPLAY_NAME,
+						opencodeZenProvider({ models: opencodeZen.models }),
+						retryPolicy,
+					),
+				);
+			}
 			return profiles;
 		},
 		resolveApiKey: async (provider) => {
@@ -367,6 +417,15 @@ export function createCodingOAuthAdapter(
 				// desktop app owns the sign-in, so this is the only place a WorkBuddy
 				// request acquires its bearer.
 				return resolveOAuthToken("WorkBuddy", async () => (await workbuddy.store.resolve()).accessToken);
+			}
+			if (provider === OPENCODE_ZEN_ROUTE) {
+				if (opencodeZen === undefined) throw new LlmError(`Unknown OAuth provider "${provider}"`, "NO_ADAPTER");
+				// A Zen key is long-lived and operator-managed, so there is nothing to
+				// refresh: a miss is a missing credential, reported as such rather
+				// than retried as a transient auth failure.
+				const key = await opencodeZen.resolveApiKey();
+				if (key === undefined || key.length === 0) return missingCredential("OpenCode Zen");
+				return key;
 			}
 			const session =
 				provider === CODEX_OAUTH_FAST_ROUTE ? byNativeId.get(CODEX_PI_PROVIDER) : byNativeId.get(provider);

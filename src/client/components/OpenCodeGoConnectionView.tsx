@@ -64,17 +64,19 @@ export type GoViewKey =
 	| "title"
 	| "description"
 	| "configured"
+	| "unconfigured"
 	| "credential"
 	| "apiKey"
+	| "apiKeyPlaceholder"
 	| "reuseHint"
 	| "reuse"
 	| "saveKey"
+	| "clearKey"
+	| "clearKeyConfirm"
+	| "credentialCleared"
 	| "fetchModels"
 	| "model"
-	| "modelsHint"
 	| "modelsEmpty"
-	| "selectMatching"
-	| "clearModels"
 	| "chooseCredential"
 	| "apply"
 	| "startConversation"
@@ -106,6 +108,8 @@ export interface GoViewProps {
 	readonly t: (key: GoViewKey, params?: Record<string, string | number>) => string;
 	readonly onReload: () => Promise<GoSnapshot | undefined>;
 	readonly onSaveCredential: (input: { credentialRef: string; apiKey?: string }) => Promise<GoSnapshot>;
+	/** Delete the stored key for the given reference. */
+	readonly onClearCredential: (input: { credentialRef: string }) => Promise<GoSnapshot>;
 	readonly onLoadModels: (ref: string) => Promise<{ models: readonly GoModel[] }>;
 	readonly onApply: (input: {
 		api?: GoApi;
@@ -141,12 +145,13 @@ export function OpenCodeGoConnectionView({
 	t,
 	onReload,
 	onSaveCredential,
+	onClearCredential,
 	onLoadModels,
 	onApply,
 	onMigrateLegacy,
 	onStartConversation,
 }: GoViewProps) {
-	const [editing, setEditing] = useState<boolean | null>(null);
+	const [editing, setEditing] = useState<boolean | null>(true);
 	const [dirty, setDirty] = useState(false);
 	const [credentialRef, setCredentialRef] = useState("");
 	const [apiKey, setApiKey] = useState("");
@@ -163,7 +168,20 @@ export function OpenCodeGoConnectionView({
 	const [pending, setPending] = useState(false);
 	const running = useRef(false);
 	const showingForm = editing ?? (status !== undefined && !status.configuration.ready);
-	const candidate = status?.credential.candidates.find((item) => item.ref === credentialRef);
+	const candidate =
+		status?.credential.candidates.find((item) => item.ref === credentialRef) ??
+		status?.credential.candidates.find((item) => item.ref === status.credential.selectedRef);
+	/**
+	 * The card acts on the credential already in use.
+	 *
+	 * The status document resolves which reference that is (a configured store
+	 * slot, else an environment reference), and with the picker gone there is
+	 * nothing to second-guess it with. When that slot is read-only — typically an
+	 * environment variable shadowing the store — both buttons are disabled and
+	 * `readOnly` says why, because a write would appear to succeed while
+	 * resolution kept returning the shadowing value.
+	 */
+	const readOnly = status !== undefined && (status.configuration.writable === false || candidate?.writable !== true);
 	const choices = catalog.length ? catalog : (status?.configuration.models ?? []);
 	const visibleChoices = choices.filter((model) => {
 		const suggested = knownGoApi(model.id) ?? (isGoApi(model.protocol) ? model.protocol : undefined);
@@ -182,7 +200,9 @@ export function OpenCodeGoConnectionView({
 				: `status.${currentCall?.lastCall ?? "no-call"}`;
 	useEffect(() => {
 		if (!status || dirty || pending) return;
-		setCredentialRef(status.credential.requiresChoice ? "" : status.credential.selectedRef);
+		// Adopt the resolved reference: with no picker, this is the only slot the
+		// save and clear buttons can act on.
+		setCredentialRef(status.credential.selectedRef);
 		setRevision(status.configuration.revision);
 		setEnabledIds(status.configuration.models.map((model) => model.id));
 		setApi(isGoApi(status.configuration.api) ? status.configuration.api : "openai-completions");
@@ -232,14 +252,19 @@ export function OpenCodeGoConnectionView({
 			<div style={{ ...actions, justifyContent: "space-between", alignItems: "center" }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
 					<ProviderIcon kind="opencodeGo" size={20} />
-					<strong style={{ ...titleStyle, fontSize: 16 }}>{t("title")}</strong>
+					<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+						<strong style={{ ...titleStyle, fontSize: 16 }}>{t("title")}</strong>
+						<p style={{ ...bodyStyle, margin: 0 }}>{t("description")}</p>
+						{status?.providerId ? (
+							<p style={{ ...hintStyle, margin: 0 }}>{t("providerIdHint", { providerId: status.providerId })}</p>
+						) : null}
+					</div>
 				</div>
-				{status?.configuration.ready ? <Badge label={t("configured")} tone="success" /> : null}
+				{status !== undefined ? (
+					<Badge label={status.configuration.ready ? t("configured") : t("unconfigured")} tone={status.configuration.ready ? "success" : "neutral"} />
+				) : null}
 			</div>
 			<p style={{ ...bodyStyle, margin: 0 }}>{t(callKey)}</p>
-			{status?.providerId ? (
-				<p style={{ ...hintStyle, margin: 0 }}>{t("providerIdHint", { providerId: status.providerId })}</p>
-			) : null}
 			{status?.legacy?.migratable && onMigrateLegacy ? (
 				<div
 					role="status"
@@ -279,108 +304,72 @@ export function OpenCodeGoConnectionView({
 					</div>
 				</div>
 			) : null}
-			{status?.configuration.ready ? (
-				<p style={{ ...bodyStyle, margin: 0, overflowWrap: "anywhere" }}>
-					{status.configuration.models.map((model) => model.name ?? model.id).join(" · ")}
-				</p>
-			) : (
-				<p style={{ ...bodyStyle, margin: 0 }}>{t("description")}</p>
-			)}
-			<div style={actions}>
-				{status?.configuration.ready && onStartConversation ? (
-					<button type="button" style={primaryButtonStyle} disabled={pending || dirty} onClick={onStartConversation}>
-						{t("startConversation")}
-					</button>
-				) : null}
-				{!showingForm && status ? (
-					<button type="button" style={buttonStyle} onClick={() => setEditing(true)}>
-						{t("edit")}
-					</button>
-				) : null}
-			</div>
 			{showingForm ? (
 				<div style={{ ...nestedStyle, gap: 12 }}>
-					<label style={field}>
-						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("credential")}</span>
-						<select
-							style={inputStyle}
-							value={credentialRef}
-							disabled={pending}
-							onChange={(event) => {
-								change();
-								setCredentialRef(event.target.value);
-							}}
-						>
-							<option value="">{t("chooseCredential")}</option>
-							{status?.credential.candidates.map((item) => (
-								<option key={item.ref} value={item.ref}>
-									{item.ref}
-									{item.configured ? ` · ${t("configured")}` : ""}
-								</option>
-							))}
-						</select>
-					</label>
-					<label style={field}>
-						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("apiKey")}</span>
-						<input
-							style={inputStyle}
-							type="password"
-							autoComplete="off"
-							value={apiKey}
-							disabled={pending || candidate?.writable !== true}
-							placeholder={candidate?.configured ? t("reuseHint") : ""}
-							onChange={(event) => {
-								change();
-								setApiKey(event.target.value);
-							}}
-						/>
-					</label>
-					{candidate?.writable === false || status?.configuration.writable === false ? (
-						<p style={{ ...hintStyle, margin: 0 }}>{t("readOnly")}</p>
-					) : null}
-					<div style={actions}>
-						<button
-							style={primaryButtonStyle}
-							type="button"
-							disabled={pending || !credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)}
-							onClick={() =>
-								run(async () => {
-									if (!credentialRef || (apiKey ? !candidate?.writable : !candidate?.configured)) return;
-									await onSaveCredential({ credentialRef, ...(apiKey ? { apiKey } : {}) });
-									setApiKey("");
-									setNotice("credentialSaved");
-								})
-							}
-						>
-							{apiKey ? t("saveKey") : t("reuse")}
-						</button>
-						<button
-							style={buttonStyle}
-							type="button"
-							disabled={pending || !candidate?.configured}
-							onClick={() =>
-								run(async () => {
-									if (!candidate?.configured) return;
-									const result = await onLoadModels(credentialRef);
-									setCatalog(result.models);
-									setDirty(true);
-									const matching = result.models.filter((model) => {
-										const suggested = knownGoApi(model.id);
-										return suggested === undefined || suggested === api;
-									});
-									if (enabledIds.length === 0) {
-										const preferred = matching.find((model) => model.id === "deepseek-v4.1-flash") ?? matching[0];
-										setEnabledIds(preferred ? [preferred.id] : []);
-									}
-									setNotice("directoryLoaded");
-								})
-							}
-						>
-							{t("fetchModels")}
-						</button>
+					{/* One input, two buttons.
+					    The credential reference is no longer a picker: this route has a
+					    single well-known slot, so asking the operator to choose between
+					    environment-variable names was a decision with no content. The
+					    reference is resolved internally and shown as a hint instead. */}
+					<div style={field}>
+						<span style={{ ...bodyStyle, fontWeight: 600 }}>{t("apiKey")}</span>
+						<div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+							<input
+								style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+								type="password"
+								aria-label={t("apiKey")}
+								autoComplete="off"
+								value={apiKey}
+								disabled={pending || readOnly}
+								placeholder={candidate?.configured ? `${credentialRef} 已配置` : t("apiKeyPlaceholder")}
+								onChange={(event) => {
+									change();
+									setApiKey(event.target.value);
+								}}
+							/>
+							<button
+								style={primaryButtonStyle}
+								type="button"
+								disabled={pending || readOnly || apiKey.trim() === ""}
+								onClick={() =>
+									run(async () => {
+										if (apiKey.trim() === "") return;
+										const saved = await onSaveCredential({ credentialRef, apiKey });
+										setApiKey("");
+										setNotice("credentialSaved");
+										if (saved.configuration.models.length === 0) {
+											// First key on this route: load the directory so the model
+											// list is not empty on the next screen.
+											const result = await onLoadModels(credentialRef);
+											setCatalog(result.models);
+										}
+									})
+								}
+							>
+								{t("saveKey")}
+							</button>
+							<button
+								style={buttonStyle}
+								type="button"
+								disabled={pending || readOnly || !candidate?.configured}
+								onClick={() =>
+									run(async () => {
+										if (!candidate?.configured) return;
+										// Destructive and easy to mis-click, so it asks once.
+										if (!globalThis.confirm(t("clearKeyConfirm"))) return;
+										await onClearCredential({ credentialRef });
+										setApiKey("");
+										setNotice("credentialCleared");
+									})
+								}
+							>
+								{t("clearKey")}
+							</button>
+						</div>
 					</div>
+					{readOnly ? <p style={{ ...hintStyle, margin: 0 }}>{t("readOnly")}</p> : null}
 					<label style={field}>
-						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("protocol")}</span>
+						<span style={{ ...bodyStyle, fontWeight: 600 }}>{t("protocol")}</span>
 						<select
 							aria-label={t("protocol")}
 							style={inputStyle}
@@ -408,38 +397,78 @@ export function OpenCodeGoConnectionView({
 					</label>
 					<p style={{ ...hintStyle, margin: 0 }}>{t("protocolHint")}</p>
 					<div style={field}>
-						<span style={{ ...bodyStyle, fontWeight: 500 }}>{t("model")}</span>
-						<p style={{ ...hintStyle, margin: 0 }}>{t("modelsHint")}</p>
-						<div style={actions}>
-							<button
-								type="button"
-								style={buttonStyle}
-								disabled={pending || status?.configuration.writable !== true || visibleChoices.length === 0}
-								onClick={() => {
-									change();
-									setEnabledIds(visibleChoices.map((model) => model.id));
-									setConfirmed(false);
-								}}
-							>
-								{t("selectMatching")}
-							</button>
-							<button
-								type="button"
-								style={buttonStyle}
-								disabled={pending || status?.configuration.writable !== true || enabledIds.length === 0}
-								onClick={() => {
-									change();
-									setEnabledIds([]);
-									setConfirmed(false);
-								}}
-							>
-								{t("clearModels")}
-							</button>
-						</div>
+						<span style={{ ...bodyStyle, fontWeight: 600 }}>{t("model")}</span>
 						<fieldset
 							aria-label={t("model")}
-							style={{ ...modelListStyle, border: "0.5px solid var(--dsw-alias-border-l2)", margin: 0, minWidth: 0 }}
+							style={{
+								...modelListStyle,
+								border: "0.5px solid var(--dsw-alias-border-l2)",
+								margin: 0,
+								minWidth: 0,
+								padding: "0 10px 8px",
+							}}
 						>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: 8,
+									padding: "8px 4px 3px",
+									margin: "0 -10px",
+									paddingLeft: 14,
+									paddingRight: 14,
+									borderBottom: "0.5px solid var(--dsw-alias-border-l2)",
+									fontWeight: 600,
+									fontSize: 13,
+									position: "sticky",
+									top: 0,
+									background: "var(--dsw-alias-bg-layer-1)",
+									zIndex: 1,
+								}}
+							>
+								<input
+									type="checkbox"
+									checked={visibleChoices.length > 0 && enabledIds.length === visibleChoices.length}
+									disabled={pending || visibleChoices.length === 0}
+									onChange={(event) => {
+										change();
+										setEnabledIds(event.target.checked ? visibleChoices.map((model) => model.id) : []);
+										setConfirmed(false);
+									}}
+								/>
+								<span style={{ flex: 1 }}>{t("model")}</span>
+								<button
+									type="button"
+									style={{
+										background: "none",
+										border: "none",
+										padding: 0,
+										color: "var(--dsw-alias-link, var(--dsw-alias-brand-primary))",
+										fontSize: 13,
+										cursor: "pointer",
+									}}
+									disabled={pending || !candidate?.configured}
+									onClick={() =>
+										run(async () => {
+											if (!candidate?.configured) return;
+											const result = await onLoadModels(credentialRef);
+											setCatalog(result.models);
+											setDirty(true);
+											const matching = result.models.filter((model) => {
+												const suggested = knownGoApi(model.id);
+												return suggested === undefined || suggested === api;
+											});
+											if (enabledIds.length === 0) {
+												const preferred = matching.find((model) => model.id === "deepseek-v4.1-flash") ?? matching[0];
+												setEnabledIds(preferred ? [preferred.id] : []);
+											}
+											setNotice("directoryLoaded");
+										})
+									}
+								>
+									{t("fetchModels")}
+								</button>
+							</div>
 							{visibleChoices.length === 0 ? (
 								<p style={{ ...hintStyle, margin: 0 }}>{t("modelsEmpty")}</p>
 							) : (
@@ -530,42 +559,11 @@ export function OpenCodeGoConnectionView({
 									});
 									setRevision(saved.configuration.revision);
 									setDirty(false);
-									setEditing(false);
 									setNotice("applied");
 								})
 							}
 						>
 							{t("apply")}
-						</button>
-						<button
-							style={buttonStyle}
-							type="button"
-							disabled={pending}
-							onClick={() =>
-								run(async () => {
-									const latest = await onReload();
-									if (latest) setRevision(latest.configuration.revision);
-									setConfirmed(false);
-								})
-							}
-						>
-							{t("reload")}
-						</button>
-						<button
-							style={buttonStyle}
-							type="button"
-							disabled={pending}
-							onClick={() =>
-								run(async () => {
-									await onReload();
-									setApiKey("");
-									setDirty(false);
-									setEditing(false);
-									setNotice(undefined);
-								})
-							}
-						>
-							{t("cancel")}
 						</button>
 					</div>
 				</div>

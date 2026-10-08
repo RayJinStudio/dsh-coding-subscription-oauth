@@ -4,7 +4,7 @@ import { readJsonRequest } from "./http-json.ts";
 import { knownOpenCodeGoModel } from "./opencode-go-catalog.ts";
 import { classifyOpenCodeGoDirectoryFailure } from "./opencode-go-errors.ts";
 import type { OpenCodeGoStatus } from "./opencode-go-header.ts";
-import { OPENCODE_GO_LEGACY_PROVIDER_ID, OPENCODE_GO_PROVIDER_ID } from "./opencode-go-ids.ts";
+import { OPENCODE_GO_LEGACY_PROVIDER_ID, OPENCODE_GO_PROVIDER_ID, OPENCODE_GO_DISPLAY_NAME } from "./opencode-go-ids.ts";
 import { type GoApi, goBaseURL, isGoApi, knownGoApi, protocolMismatch } from "./opencode-go-protocol.ts";
 import {
 	enrichDirectoryModel,
@@ -128,6 +128,21 @@ function config(settings: OpenCodeGoSettingsProvider) {
 	};
 }
 
+/**
+ * Drop the plugin-owned `llm-pi-ai` provider entry.
+ *
+ * Best-effort by design: a read-only or unavailable settings namespace must not
+ * turn a credential deletion into a failure, because the key is already gone and
+ * the operator asked for it to be gone.
+ */
+async function removeProviderConfiguration(options: Options): Promise<void> {
+	if (options.settings.writable === false) return;
+	const current = config(options.settings);
+	if (Object.keys(current.provider).length === 0) return;
+	if (current.revision === null) return;
+	await options.settings.mutate("llm-pi-ai", [unsetProviderOp()], current.revision);
+}
+
 /** Detect prior plugin takeover of the pi-ai builtin `opencode-go` slot. */
 function isPluginShapedLegacy(provider: RecordValue): boolean {
 	if (Object.keys(provider).length === 0) return false;
@@ -154,9 +169,25 @@ function legacyMigrationState(legacy: RecordValue, primary: RecordValue) {
 	};
 }
 
+/**
+ * Remove the plugin-owned provider entry from `llm-pi-ai` settings.
+ *
+ * An entry with no models (or no usable credential) is worse than no entry:
+ * pi-ai resolves it and then fails every request with "resolves no models",
+ * because this route is not described by the installed catalogue. Deleting the
+ * key removes the route from the picker until it is configured again.
+ */
+function unsetProviderOp(): SettingsOp {
+	return { op: "unset", path: ["providers", OPENCODE_GO_PROVIDER_ID] };
+}
+
 function copyProviderOps(from: RecordValue, expectedApi?: GoApi): SettingsOp[] {
 	const api = (expectedApi ?? text(from["api"])) as GoApi | undefined;
-	const ops: SettingsOp[] = [];
+	const ops: SettingsOp[] = [
+		// The model picker labels the group with the profile display name, so the
+		// isolated route reads as "OpenCode Go" rather than its raw id.
+		{ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "displayName"], value: OPENCODE_GO_DISPLAY_NAME },
+	];
 	const apiKeyEnv = text(from["apiKeyEnv"]);
 	if (apiKeyEnv !== undefined)
 		ops.push({ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "apiKeyEnv"], value: apiKeyEnv });
@@ -333,6 +364,30 @@ export function createOpenCodeGoConnectionController(options: Options) {
 			return statusDocument(options, input.credentialRef);
 		},
 		/**
+		 * Delete the stored OpenCode Go key.
+		 *
+		 * Removes the value from the credential store rather than writing a blank:
+		 * an empty stored value is "absent" seam-wide, but leaving the record
+		 * behind would keep reporting a configured reference while resolution
+		 * silently failed.
+		 *
+		 * The `llm-pi-ai` provider entry is removed as well. A keyless entry is
+		 * not a neutral state: pi-ai still resolves the route and then fails
+		 * requests, so the route must disappear from the model picker until a key
+		 * is configured again. The credential reference keeps naming WHICH
+		 * environment slot a future key belongs to, so re-entering one lands in
+		 * the same place.
+		 */
+		async clearCredential(input: { credentialRef: string }) {
+			const ref = refName(input.credentialRef);
+			if (!(await options.credentials.describe(ref)).writable)
+				throw new ConnectionError("credential-readonly", "The selected credential source is read-only", 403);
+			await options.credentials.unset(ref);
+			await removeProviderConfiguration(options);
+			options.onConfigurationChange?.();
+			return statusDocument(options, input.credentialRef);
+		},
+		/**
 		 * If DSH model settings created/updated the isolated plugin provider
 		 * without `apiKeyEnv`, reinject the selected configured credential reference.
 		 */
@@ -428,21 +483,32 @@ export function createOpenCodeGoConnectionController(options: Options) {
 			if (!(await options.credentials.describe(ref)).configured)
 				throw new ConnectionError("credential-missing", "Configure an OpenCode Go API key first", 409);
 			const { selected, replaceSelection } = resolveApplyModels(input);
-			if (
-				(!replaceSelection && selected.length === 0) ||
-				!Number.isSafeInteger(input.expectedRevision) ||
-				input.expectedRevision < 0
-			)
-				throw new ConnectionError(
-					"invalid-configuration",
-					"Choose at least one model and reload the current settings revision",
-					400,
-				);
+			if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0)
+				throw new ConnectionError("invalid-configuration", "Reload the current settings revision", 400);
 			const current = config(options.settings);
 			if (options.settings.writable === false)
 				throw new ConnectionError("settings-readonly", "DSH settings are read-only", 403);
 			if (current.revision === null)
 				throw new ConnectionError("settings-unavailable", "DSH model settings are unavailable", 503);
+			/**
+			 * Saving with nothing selected deregisters the route.
+			 *
+			 * pi-ai treats a provider entry with an empty `models` list as a broken
+			 * route and fails every request with "resolves no models", because the
+			 * installed catalogue does not describe this id. Removing the entry is
+			 * the only state that is genuinely "off".
+			 */
+			if (replaceSelection && selected.length === 0) {
+				await options.settings.mutate("llm-pi-ai", [unsetProviderOp()], input.expectedRevision);
+				options.onConfigurationChange?.();
+				return statusDocument(options, input.credentialRef);
+			}
+			if (!replaceSelection && selected.length === 0)
+				throw new ConnectionError(
+					"invalid-configuration",
+					"Choose at least one model and reload the current settings revision",
+					400,
+				);
 			const api =
 				input.api ??
 				(isGoApi(text(current.provider["api"])) ? (text(current.provider["api"]) as GoApi) : undefined) ??
@@ -475,6 +541,7 @@ export function createOpenCodeGoConnectionController(options: Options) {
 				catalog: enrichedSelected,
 			});
 			const ops: SettingsOp[] = [
+				{ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "displayName"], value: OPENCODE_GO_DISPLAY_NAME },
 				{ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "apiKeyEnv"], value: input.credentialRef },
 				{ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "api"], value: api },
 				{ op: "set", path: ["providers", OPENCODE_GO_PROVIDER_ID, "baseURL"], value: goBaseURL(api) },
@@ -567,6 +634,14 @@ export function registerOpenCodeGoConnectionRoute(
 								}),
 							);
 						}
+						if (body["action"] === "clear")
+							return json(
+								res,
+								200,
+								await controller.clearCredential({
+									credentialRef: String(body["credentialRef"] ?? ""),
+								}),
+							);
 						if (body["action"] === "reinject")
 							return json(
 								res,
@@ -609,7 +684,7 @@ export function registerOpenCodeGoConnectionRoute(
 						}
 						throw new ConnectionError(
 							"invalid-action",
-							"OpenCode Go action must be credential, apply, reinject, or migrate",
+							"OpenCode Go action must be credential, clear, apply, reinject, or migrate",
 							400,
 						);
 					} catch (error) {

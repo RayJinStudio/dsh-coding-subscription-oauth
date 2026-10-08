@@ -8,17 +8,20 @@ import {
 	type OpenCodeGoSettingsProvider,
 } from "../src/opencode-go-connection.ts";
 
-function fixture(provider: Record<string, unknown> = {}, revision = 4) {
+function fixture(provider: Record<string, unknown> = {}, revision = 4, writable = true) {
 	const values = new Map<string, string>();
 	const credentials = {
 		describe: vi.fn(async (ref: string) => ({
 			configured: values.has(String(ref)),
-			writable: true,
+			writable,
 			source: values.has(String(ref)) ? "store" : null,
 		})),
 		resolve: vi.fn(async (ref: string) => (values.has(String(ref)) ? { value: values.get(String(ref))! } : undefined)),
 		set: vi.fn(async (ref: string, value: string) => {
 			values.set(String(ref), value);
+		}),
+		unset: vi.fn(async (ref: string) => {
+			values.delete(String(ref));
 		}),
 	} as unknown as CredentialProvider;
 	const mutate = vi.fn(async () => undefined);
@@ -424,6 +427,38 @@ it("apply writes only the isolated provider id", async () => {
 	const applyCall = f.mutate.mock.calls[0] as unknown as [string, Array<{ path: string[] }>, number];
 	const ops = applyCall[1];
 	expect(ops.every((op) => op.path[0] === "providers" && op.path[1] === "coding-opencode-go")).toBe(true);
+});
+
+it("deletes the stored Go key and leaves the route's credential slot in place", async () => {
+	const f = fixture({ apiKeyEnv: "OPENCODE_GO_API_KEY", models: [{ id: "deepseek-v4.1-flash" }] });
+	f.values.set("OPENCODE_GO_API_KEY", "fixture");
+	const c = createOpenCodeGoConnectionController({
+		credentials: f.credentials,
+		settings: f.settings,
+		callStatus,
+	});
+	const status = await c.clearCredential({ credentialRef: "OPENCODE_GO_API_KEY" });
+	// Deleted from the store, not blanked: an empty stored value reads as absent
+	// seam-wide, but a leftover record would still describe the ref as configured.
+	expect(f.values.has("OPENCODE_GO_API_KEY")).toBe(false);
+	expect(status.credential.configured).toBe(false);
+	// `apiKeyEnv` is deliberately NOT rewritten: it names WHERE a key belongs, so
+	// re-entering one later lands in the same slot without re-running setup.
+	expect(f.mutate).not.toHaveBeenCalled();
+});
+
+it("refuses to delete through a read-only credential source", async () => {
+	const f = fixture({ apiKeyEnv: "OPENCODE_GO_API_KEY", models: [{ id: "deepseek-v4.1-flash" }] }, 4, false);
+	f.values.set("OPENCODE_GO_API_KEY", "fixture");
+	const c = createOpenCodeGoConnectionController({
+		credentials: f.credentials,
+		settings: f.settings,
+		callStatus,
+	});
+	await expect(c.clearCredential({ credentialRef: "OPENCODE_GO_API_KEY" })).rejects.toMatchObject({
+		code: "credential-readonly",
+	});
+	expect(f.values.has("OPENCODE_GO_API_KEY")).toBe(true);
 });
 
 it("enriches the live directory with known thinking metadata", async () => {

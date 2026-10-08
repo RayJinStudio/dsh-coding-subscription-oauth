@@ -13,7 +13,7 @@ import type { CredentialInfo, CredentialProvider, CredentialRef } from "@deepsee
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import { assertUsableApiKey, type RetryPolicyConfig, RetryPolicySchema } from "@deepseek-ai/dsh-llm";
 import z from "@deepseek-ai/schemastery";
-import type { Credential, OAuthCredential } from "@earendil-works/pi-ai";
+import type { Api, Credential, Model, OAuthCredential } from "@earendil-works/pi-ai";
 import { acquireCodingOAuthRuntime, CODING_OAUTH_CORE_ABI, type CodingOAuthRuntime } from "dsh-coding-oauth-core";
 import { createCodingOAuthAdapter } from "./adapter.ts";
 import { registerCodingOAuthRoutes } from "./auth-routes.ts";
@@ -84,6 +84,13 @@ import {
 	registerOpenCodeGoConnectionRoute,
 } from "./opencode-go-connection.ts";
 import { installOpenCodeGoHeaderCompatibility, OpenCodeGoHeaderState } from "./opencode-go-header.ts";
+import {
+	createOpenCodeZenConnectionController,
+	opencodeZenEnabledModels,
+	registerOpenCodeZenConnectionRoute,
+} from "./opencode-zen-connection.ts";
+import { OPENCODE_ZEN_KNOWN_REFS } from "./opencode-zen-ids.ts";
+import { zenModels } from "./opencode-zen-provider.ts";
 import { acquireCodingOAuthProxy } from "./proxy.ts";
 import {
 	createSearchProviderSettings,
@@ -783,6 +790,49 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 	});
 
 	let gatewayGoServices: { credentials: CredentialProvider; settings: OpenCodeGoSettingsProvider } | undefined;
+	/**
+	 * Zen's served-model snapshot.
+	 *
+	 * pi-ai's `profiles` callback is synchronous while the selection lives in a
+	 * file, so the models are cached here and refreshed whenever the connection
+	 * controller changes the configuration. A cold read falls back to the whole
+	 * catalogue, which is also what an absent selection file means.
+	 */
+	let opencodeZenModels: readonly Model<Api>[] | undefined;
+	const refreshOpenCodeZenModels = async (): Promise<void> => {
+		try {
+			opencodeZenModels = await opencodeZenEnabledModels();
+		} catch (error) {
+			opencodeZenModels = undefined;
+			logger.warn("OpenCode Zen model selection could not be read; falling back to the whole catalogue");
+			logger.warn(error);
+		}
+	};
+	void refreshOpenCodeZenModels();
+	const opencodeZenModelsSnapshot = (): readonly Model<Api>[] => opencodeZenModels ?? zenModels();
+	/**
+	 * Credential service for the Zen route, published by the Zen injection below.
+	 *
+	 * The adapter's `resolveApiKey` is a synchronous-time callback that may run
+	 * before or after that injection, so the service is held here and a missing
+	 * one reports "no credential" rather than throwing: the route simply shows
+	 * as unauthenticated until the service is attached.
+	 */
+	let opencodeZenCredentials: CredentialProvider | undefined;
+	const resolveOpenCodeZenApiKey = async (): Promise<string | undefined> => {
+		const credentials = opencodeZenCredentials;
+		if (credentials === undefined) return undefined;
+		for (const name of OPENCODE_ZEN_KNOWN_REFS) {
+			try {
+				const resolved = await credentials.resolve(credentialRef(name));
+				const value = resolved?.value;
+				if (value !== undefined && value.length > 0) return value;
+			} catch {
+				// A missing or unreadable reference is not fatal: try the next.
+			}
+		}
+		return undefined;
+	};
 	const gateway = createCodingOAuthGatewayController({
 		getGoPreview: () => gatewayGoPreview(gatewayGoServices?.settings),
 		resolveGoCredential: async (ref) => (await gatewayGoServices?.credentials.resolve(credentialRef(ref)))?.value,
@@ -822,6 +872,33 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 			};
 		});
 		registerOpenCodeGoConnectionRoute(goCtx, goController, ownerRequestPolicy);
+	});
+	// The Zen card shares the card with Go but owns its own route and selection
+	// file. It needs only `credentials`: the selection lives in the plugin's own
+	// DSH_HOME file, not in the `llm-pi-ai` settings layer, because a
+	// mixed-protocol route cannot be expressed there.
+	ctx.inject(["webServer", "credentials"], (zenCtx) => {
+		const credentials = zenCtx.get("credentials") as CredentialProvider;
+		opencodeZenCredentials = credentials;
+		const zenController = createOpenCodeZenConnectionController({
+			credentials,
+			onConfigurationChange: () => {
+				// Refresh the cached snapshot AND announce it. The announcement is
+				// what makes DSH re-read the model list: every other provider here
+				// updates immediately because its catalog change emits
+				// `llm/adapters-updated`, and without it the new selection stays
+				// invisible until the plugin reloads. Refreshing alone is not
+				// enough, because nothing re-queries `listModels` on its own.
+				void refreshOpenCodeZenModels().then(notifyCatalogChange);
+			},
+		});
+		registerOpenCodeZenConnectionRoute(zenCtx, zenController, ownerRequestPolicy);
+		zenCtx.effect(
+			() => () => {
+				if (opencodeZenCredentials === credentials) opencodeZenCredentials = undefined;
+			},
+			"dsh-coding-subscription-oauth: OpenCode Zen credential handle",
+		);
 	});
 
 	// The DSH config editor is absent in profiles without a loader-owned patch,
@@ -967,6 +1044,10 @@ async function applyOwned(ctx: Context, config: Config): Promise<void> {
 			codexAuth,
 			codexModels,
 			opencodeGo,
+			opencodeZen: {
+				models: () => opencodeZenModelsSnapshot(),
+				resolveApiKey: () => resolveOpenCodeZenApiKey(),
+			},
 			logger,
 		}),
 	);
@@ -980,6 +1061,19 @@ interface OwnedLlmDependencies {
 	readonly codexAuth: ReturnType<typeof codexAuthFromSession>;
 	readonly codexModels: ReturnType<typeof createCodexModelCapabilities>;
 	readonly opencodeGo: OpenCodeGoHeaderState;
+	/**
+	 * OpenCode Zen route wiring.
+	 *
+	 * `models` is a LIVE reader: the enabled set is card state persisted under
+	 * DSH_HOME, and pi-ai's `profiles` callback is synchronous, so the route
+	 * re-reads the selection on every catalogue read. The snapshot is cached and
+	 * invalidated by the connection controller's change hook, because the reader
+	 * cannot await a file read.
+	 */
+	readonly opencodeZen: {
+		models: () => readonly Model<Api>[];
+		resolveApiKey: () => Promise<string | undefined>;
+	};
 	readonly logger: ReturnType<Context["logger"]>;
 }
 
@@ -1081,6 +1175,7 @@ function applyOwnedLlm(ctx: Context, config: Config, owner: OwnedLlmDependencies
 				isEligible: (modelId) => owner.runtime.current().codexFast && owner.codexModels.isPriorityEligible(modelId),
 			},
 			workbuddy: owner.workbuddy,
+			opencodeZen: owner.opencodeZen,
 		}),
 	);
 	if (adapterRegistration.withheld.length > 0) {

@@ -165,7 +165,7 @@ export function AccountsTab({
 		{
 			id: "opencodeGo",
 			iconKind: "opencodeGo",
-			label: "OpenCode Go",
+			label: "OpenCode",
 			statusTone: status.opencodeGo.active ? "success" : undefined,
 		},
 		{

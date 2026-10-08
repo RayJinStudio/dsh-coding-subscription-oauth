@@ -33,6 +33,14 @@ import type {
 
 export const STATUS_PATH = CODING_OAUTH_STATUS_PATH;
 export const OPENCODE_GO_CONNECTION_PATH = "/plugins/dsh-grok-build/opencode-go";
+/**
+ * OpenCode Zen connection path.
+ *
+ * A separate route from Go's, not a mode of it: Zen spans several wire
+ * protocols and keeps its selection in the plugin's own DSH_HOME file, while Go
+ * names one protocol and lives in `llm-pi-ai` settings.
+ */
+export const OPENCODE_ZEN_CONNECTION_PATH = "/plugins/dsh-grok-build/opencode-zen";
 export const LOGIN_PATH = CODING_OAUTH_LOGIN_PATH;
 export const LOGIN_CODE_PATH = CODING_OAUTH_LOGIN_CODE_PATH;
 export const LOGIN_CANCEL_PATH = CODING_OAUTH_LOGIN_CANCEL_PATH;
